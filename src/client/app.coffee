@@ -1,7 +1,7 @@
-WIDTH = 800
-HEIGHT = 600
+WIDTH = window.innerWidth
+HEIGHT = window.innerHeight
 
-VIEW_ANGLE = 45
+VIEW_ANGLE = 70
 ASPECT = WIDTH/HEIGHT
 NEAR = 0.1
 FAR = 10000
@@ -65,7 +65,25 @@ height = 10
 
 geometry = new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, TOP_LEFT, LEFT ], height )
 hexagon = new THREE.Mesh( geometry, material )
+hexagon2 = new THREE.Mesh( geometry, material )
+hexagon3 = new THREE.Mesh( geometry, material )
+hexagon4 = new THREE.Mesh( geometry, material )
+hexagon5 = new THREE.Mesh( geometry, material )
 scene.add( hexagon )
+hexagon2.position.y = (stalk*2)+6
+scene.add( hexagon2 )
+hexagon3.position.x = 30+stalk+6
+hexagon3.position.y = (stalk)+3
+
+hexagon4.position.x = -(30+stalk+6)
+hexagon4.position.y = (stalk)+3
+
+hexagon5.position.x = -(30+stalk+6)
+hexagon5.position.y = (-stalk)-3
+
+scene.add( hexagon3 )
+scene.add( hexagon4 )
+scene.add( hexagon5 )
 
 renderer.setClearColor 0xddccff, 1
 renderer.setSize WIDTH, HEIGHT
