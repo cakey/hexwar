@@ -41,8 +41,6 @@ camera.rotation.x = 0.8
 camera.rotation.y = -0.3
 camera.rotation.z = -0.3
 
-material = new THREE.MeshPhongMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
-
 pointLight = new THREE.PointLight(0xFFFFFF)
 
 pointLight.position.x = 0
@@ -65,19 +63,51 @@ height = 10
 
 geometry = new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, TOP_LEFT, LEFT ], height )
 
+hexagons = new THREE.Object3D();
+
 for i in [-1..8]
     for j in [-1..8]
+        material = new THREE.MeshPhongMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
         hexagon = new THREE.Mesh( geometry, material )
         hexagon.position.x = (30+stalk+6) * j
         y = ((stalk*2)+6) * i
         if j%2 isnt 0
-            y += (stalk)-3
+            y += (stalk)+3
         hexagon.position.y = y
-        scene.add hexagon
+        hexagons.add hexagon
+
+scene.add hexagons
 
 renderer.setClearColor 0xeeeeff, 1
 renderer.setSize WIDTH, HEIGHT
 
 document.getElementById("container").appendChild(renderer.domElement)
 
+raycaster = new THREE.Raycaster()
+mouseVector = new THREE.Vector3()
+
+lastSet = null
+
+onMouseMove = (e) ->
+    mouseVector.x = 2 * (e.clientX / window.innerWidth) - 1
+    mouseVector.y = 1 - 2 * ( e.clientY / window.innerHeight )
+
+    raycaster.setFromCamera( mouseVector, camera )
+
+    intersects = raycaster.intersectObjects(hexagons.children)
+
+    for i in intersects
+        if lastSet isnt i.object.uuid
+            lastSet = i.object.uuid
+            if i.object.material.color.getHexString() is "ff0000"
+                i.object.material.color.set("#00b2fc")
+            else
+                i.object.material.color.set("#ff0000")
+
+            renderer.render(scene, camera)
+
+
+window.addEventListener 'mousemove', onMouseMove, false
+
 renderer.render(scene, camera)
+
