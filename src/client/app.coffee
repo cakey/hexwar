@@ -129,7 +129,12 @@ render = ->
     renderer.render(scene, camera)
     window.requestAnimationFrame render
 
+onResize = ->
+    renderer.setSize(window.innerWidth, window.innerHeight)
+    camera.aspect = window.innerWidth / window.innerHeight
+    camera.updateProjectionMatrix()
 
+window.addEventListener 'resize', onResize, false
 window.addEventListener 'mousemove', onMouseMove, false
 window.addEventListener 'click', onClick, false
 
