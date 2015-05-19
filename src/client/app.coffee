@@ -6,28 +6,9 @@ ASPECT = WIDTH/HEIGHT
 NEAR = 0.1
 FAR = 10000
 
-PrismGeometry = (vertices, height) ->
+PrismGeometry = require './PrismGeometry'
 
-    Shape = new THREE.Shape()
-
-    f = (ctx) ->
-
-        ctx.moveTo( vertices[0].x, vertices[0].y )
-
-        for i in [1..vertices.length-1]
-            ctx.lineTo( vertices[i].x, vertices[i].y )
-
-        ctx.lineTo( vertices[0].x, vertices[0].y )
-
-    f Shape
-
-    settings = {amount: height, bevelEnabled: false}
-
-    THREE.ExtrudeGeometry.call( this, Shape, settings )
-
-PrismGeometry.prototype = Object.create( THREE.ExtrudeGeometry.prototype );
-
-renderer = new THREE.WebGLRenderer()
+renderer = new THREE.WebGLRenderer({ antialias: true })
 
 camera = new THREE.PerspectiveCamera(VIEW_ANGLE,ASPECT,NEAR,FAR)
 
@@ -35,9 +16,9 @@ scene = new THREE.Scene()
 
 scene.add camera
 
-cameraDistance = 165
+cameraDistance = 185
 
-camera.position.x = 530
+camera.position.x = 700
 camera.position.y = -4 * cameraDistance
 camera.position.z = 4 * cameraDistance
 camera.rotation.x = Math.PI/4
@@ -52,28 +33,30 @@ pointLight.position.z = 500
 
 scene.add(pointLight)
 
-stalk = 30*Math.tan(Math.PI/3)
 
-CENTER = new THREE.Vector2( 30, stalk )
+halfEdge = 40
+stalk = halfEdge*Math.tan(Math.PI/3)
 
-BOTTOM_LEFT = new THREE.Vector2( -30, -stalk )
-BOTTOM_RIGHT = new THREE.Vector2( 30, -stalk )
-TOP_LEFT = new THREE.Vector2( -30, stalk )
-TOP_RIGHT = new THREE.Vector2( 30, stalk )
+BOTTOM_LEFT = new THREE.Vector2( -halfEdge, -stalk )
+BOTTOM_RIGHT = new THREE.Vector2( halfEdge, -stalk )
+TOP_LEFT = new THREE.Vector2( -halfEdge, stalk )
+TOP_RIGHT = new THREE.Vector2( halfEdge, stalk )
 LEFT = new THREE.Vector2( -stalk, 0 )
 RIGHT = new THREE.Vector2( +stalk, 0 )
 
-tileHeight = 10
+tileHeight = 3
 
-geometry = new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, TOP_LEFT, LEFT ], tileHeight )
+hexGeometry = new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, TOP_LEFT, LEFT ], tileHeight )
 
 hexagons = new THREE.Object3D();
 
 hexTo3d = (hexX, hexY) ->
-    x: (30+stalk+6) * hexX
-    y: (((stalk*2)+6) * hexY) + (if hexX%2 isnt 0 then (stalk)+3 else 0)
+    border = 4
+    x: (halfEdge+stalk+border*2) * hexX
+    y: (((stalk*2)+(border+2)*2) * hexY) + (if hexX%2 isnt 0 then (stalk)+border else 0)
 
 uuidToHex = new Map()
+hexToUuid = new Map()
 
 # add base tiles to render
 for hexX in [0..12]
@@ -81,18 +64,19 @@ for hexX in [0..12]
     for hexY in [0...height]
         {x, y} = hexTo3d hexX, hexY
         material = new THREE.MeshPhongMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
-        hexagon = new THREE.Mesh( geometry, material )
+        hexagon = new THREE.Mesh( hexGeometry, material )
         hexagon.position.x = x
         hexagon.position.y = y
         hexagons.add hexagon
         uuidToHex.set hexagon.uuid, [hexX, hexY]
+        hexToUuid.set [hexX, hexY], hexagon.uuid
 
 scene.add hexagons
 
 # add player to render
 coneHeight = 80
 
-playerGeometry = new THREE.CylinderGeometry(0, 30, coneHeight, 30)
+playerGeometry = new THREE.CylinderGeometry(10, 30, coneHeight, 100)
 playerMaterial = new THREE.MeshPhongMaterial( { color: 0xccff33 } )
 playerMesh = new THREE.Mesh( playerGeometry, playerMaterial )
 {x, y} = hexTo3d 5, 1
