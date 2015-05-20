@@ -108,6 +108,7 @@ class Player
 class GameView
     constructor: ->
         @players = []
+        @selectedPlayer = null
 
     newPlayer: (hex) ->
         p = new Player()
@@ -118,6 +119,22 @@ class GameView
     update: ->
         for p in @players
             p.update()
+
+    selectHex: (selectedHex) ->
+        if not @selectedPlayer?
+            for player, i in @players
+                if _.isEqual selectedHex, player.hex
+                    player.setState "selected"
+                    @selectedPlayer = player
+        else
+            @selectedPlayer.setPosition selectedHex
+            @selectedPlayer.setState "none"
+            @selectedPlayer = null
+
+    deselect: ->
+        if @selectedPlayer?
+            @selectedPlayer.setState "none"
+            @selectedPlayer = null
 
 gameView = new GameView()
 gameView.newPlayer [0,1]
@@ -141,13 +158,9 @@ onClick = (e) ->
     if intersects.length > 0
         hexUuid = intersects[0].object.uuid
         clickedHex = uuidToHex.get hexUuid
-        if _.isEqual clickedHex, gameView.players[0].hex
-            gameView.players[0].setState "selected"
-        else if gameView.players[0].state is "selected"
-            gameView.players[0].setState "none"
-            gameView.players[0].setPosition clickedHex
+        gameView.selectHex clickedHex
     else
-        gameView.players[0].setState "none"
+        gameView.deselect()
 
 
 onMouseMove = (e) ->
