@@ -1,3 +1,8 @@
+_ = require 'lodash'
+
+PrismGeometry = require './PrismGeometry'
+
+
 WIDTH = window.innerWidth
 HEIGHT = window.innerHeight
 
@@ -6,7 +11,6 @@ ASPECT = WIDTH/HEIGHT
 NEAR = 0.1
 FAR = 10000
 
-PrismGeometry = require './PrismGeometry'
 
 renderer = new THREE.WebGLRenderer({ antialias: true })
 
@@ -16,7 +20,7 @@ scene = new THREE.Scene()
 
 scene.add camera
 
-cameraDistance = 185
+cameraDistance = 125
 
 camera.position.x = 700
 camera.position.y = -4 * cameraDistance
@@ -50,7 +54,7 @@ hexGeometry = new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, 
 
 hexagons = new THREE.Object3D();
 
-hexTo3d = (hexX, hexY) ->
+hexTo3d = ([hexX, hexY]) ->
     border = 4
     x: (halfEdge+stalk+border*2) * hexX
     y: (((stalk*2)+(border+2)*2) * hexY) + (if hexX%2 isnt 0 then (stalk)+border else 0)
@@ -62,7 +66,7 @@ hexToUuid = new Map()
 for hexX in [0..12]
     height = if hexX%2 is 0 then 7 else 6
     for hexY in [0...height]
-        {x, y} = hexTo3d hexX, hexY
+        {x, y} = hexTo3d [hexX, hexY]
         material = new THREE.MeshPhongMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
         hexagon = new THREE.Mesh( hexGeometry, material )
         hexagon.position.x = x
@@ -73,18 +77,52 @@ for hexX in [0..12]
 
 scene.add hexagons
 
-# add player to render
-coneHeight = 80
+class Player
+    constructor: ->
+        @coneHeight = 80
+        @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
+        @material = new THREE.MeshPhongMaterial( { color: 0xccff33 } )
+        @mesh = new THREE.Mesh( @geometry, @material )
+        @mesh.rotation.x = Math.PI/2
+        @mesh.position.z = tileHeight + @coneHeight/2
+        @setPosition [0,0]
 
-playerGeometry = new THREE.CylinderGeometry(10, 30, coneHeight, 100)
-playerMaterial = new THREE.MeshPhongMaterial( { color: 0xccff33 } )
-playerMesh = new THREE.Mesh( playerGeometry, playerMaterial )
-{x, y} = hexTo3d 5, 1
-playerMesh.rotation.x = Math.PI/2
-playerMesh.position.x = x
-playerMesh.position.y = y
-playerMesh.position.z = tileHeight + coneHeight/2
-scene.add playerMesh
+    setPosition: (hex) ->
+        @hex = hex
+        {@x, @y} = hexTo3d @hex
+        @mesh.position.x = @x
+        @mesh.position.y = @y
+
+    setState: (@state) ->
+        switch @state
+            when "selected"
+                @material.color.set "#ffcc33"
+            when "none"
+                @material.color.set "#ccff33"
+
+    update: ->
+        if @state is "selected"
+            @mesh.rotation.y += Math.PI/60
+
+
+class GameView
+    constructor: ->
+        @players = []
+
+    newPlayer: (hex) ->
+        p = new Player()
+        p.setPosition hex
+        @players.push p
+        scene.add p.mesh
+
+    update: ->
+        for p in @players
+            p.update()
+
+gameView = new GameView()
+gameView.newPlayer [0,1]
+gameView.newPlayer [0,3]
+gameView.newPlayer [0,5]
 
 renderer.setClearColor 0xeeeeff, 1
 renderer.setSize WIDTH, HEIGHT
@@ -96,21 +134,30 @@ mouseVector = new THREE.Vector3()
 mouseVector.x = 0
 mouseVector.y = 0
 
-lastSet = null
-
 onClick = (e) ->
     raycaster.setFromCamera( mouseVector, camera )
 
     intersects = raycaster.intersectObjects(hexagons.children)
-    console.log intersects
     if intersects.length > 0
-        playerMesh.position.x = intersects[0].object.position.x
-        playerMesh.position.y = intersects[0].object.position.y
+        hexUuid = intersects[0].object.uuid
+        clickedHex = uuidToHex.get hexUuid
+        if _.isEqual clickedHex, gameView.players[0].hex
+            gameView.players[0].setState "selected"
+        else if gameView.players[0].state is "selected"
+            gameView.players[0].setState "none"
+            gameView.players[0].setPosition clickedHex
+    else
+        gameView.players[0].setState "none"
+
 
 onMouseMove = (e) ->
     mouseVector.x = 2 * (e.clientX / window.innerWidth) - 1
     mouseVector.y = 1 - 2 * ( e.clientY / window.innerHeight )
 
+
+update = ->
+    gameView.update()
+    setTimeout update, 20
 
 render = ->
     raycaster.setFromCamera( mouseVector, camera )
@@ -138,5 +185,6 @@ window.addEventListener 'resize', onResize, false
 window.addEventListener 'mousemove', onMouseMove, false
 window.addEventListener 'click', onClick, false
 
+update()
 render()
 
