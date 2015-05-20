@@ -68,7 +68,7 @@ for hexX in [0..12]
     height = if hexX%2 is 0 then 7 else 6
     for hexY in [0...height]
         {x, y} = hexTo3d [hexX, hexY]
-        material = new THREE.MeshPhongMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
+        material = new THREE.MeshBasicMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
         hexagon = new THREE.Mesh( hexGeometry, material )
         hexagon.position.x = x
         hexagon.position.y = y
@@ -91,7 +91,7 @@ class Player
     constructor: ->
         @coneHeight = 80
         @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
-        @material = new THREE.MeshPhongMaterial( { color: 0xccff33 } )
+        @material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
         @mesh = new THREE.Mesh( @geometry, @material )
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
@@ -106,9 +106,9 @@ class Player
     setState: (@state) ->
         switch @state
             when "selected"
-                @material.color.set "#ffcc33"
+                @material.color.set "#e74c3c"
             when "none"
-                @material.color.set "#ccff33"
+                @material.color.set "#9b59b6"
 
     update: ->
         if @state is "selected"
@@ -151,7 +151,7 @@ gameView.newPlayer [0,1]
 gameView.newPlayer [0,3]
 gameView.newPlayer [0,5]
 
-renderer.setClearColor 0xeeeeff, 1
+renderer.setClearColor 0x333333, 1
 renderer.setSize WIDTH, HEIGHT
 
 document.getElementById("webgl_container").appendChild(renderer.domElement)
@@ -198,9 +198,9 @@ render = ->
 
     for c in hexagons.children
         if intersectUuids.has c.uuid
-            c.material.color.set "#ff0000"
+            c.material.color.set "#f39c12"
         else if adjacentUuids.has c.uuid
-            c.material.color.set "#43F58C"
+            c.material.color.set "#2ecc71"
         else
             c.material.color.set "#00b2fc"
 
@@ -234,7 +234,7 @@ PlayerUI = React.createClass
             left: 0
             bottom: 0
             color: "#555555"
-        <div style={style}>
+        <div style={style} className="noSelect">
             Your turn. <br />
             Turn 34 / 60 <br />
             1 Action | 0 Move <br />
