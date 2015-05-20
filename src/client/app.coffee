@@ -1,4 +1,5 @@
 _ = require 'lodash'
+React = require 'React'
 
 PrismGeometry = require './PrismGeometry'
 
@@ -57,7 +58,7 @@ hexagons = new THREE.Object3D();
 hexTo3d = ([hexX, hexY]) ->
     border = 4
     x: (halfEdge+stalk+border*2) * hexX
-    y: (((stalk*2)+(border+2)*2) * hexY) + (if hexX%2 isnt 0 then (stalk)+border else 0)
+    y: (((stalk*2)+(border*1.5)*2) * hexY) + (if hexX%2 isnt 0 then (stalk)+border else 0)
 
 uuidToHex = new Map()
 hexToUuid = new Map()
@@ -153,7 +154,7 @@ gameView.newPlayer [0,5]
 renderer.setClearColor 0xeeeeff, 1
 renderer.setSize WIDTH, HEIGHT
 
-document.getElementById("container").appendChild(renderer.domElement)
+document.getElementById("webgl_container").appendChild(renderer.domElement)
 
 raycaster = new THREE.Raycaster()
 mouseVector = new THREE.Vector3()
@@ -218,3 +219,35 @@ window.addEventListener 'click', onClick, false
 update()
 render()
 
+PlayerUI = React.createClass
+    render: ->
+        style =
+            width: 220
+            height: 140
+            backgroundColor: "rgba(245, 245, 255, 0.9)"
+            borderTopRightRadius: 200
+            boxShadow: "4px -4px 12px 12px rgba(0, 0, 0, 0.2)"
+            position: "absolute"
+            padding: 40
+            fontSize: 24
+            fontFamily: "Open Sans"
+            left: 0
+            bottom: 0
+            color: "#555555"
+        <div style={style}>
+            Your turn. <br />
+            Turn 34 / 60 <br />
+            1 Action | 0 Move <br />
+            84 s  <br />
+            19 tiles
+        </div>
+
+React.render(
+    <PlayerUI />
+    document.getElementById('ui_container')
+)
+
+    # React.render(
+    #     <Arena gameState={gameState} canvas={canvas} camera={camera} UIPlayer={focusedUIPlayer} />
+    #     document.getElementById('arena')
+    # )
