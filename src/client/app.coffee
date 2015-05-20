@@ -31,7 +31,7 @@ camera.rotation.z = 0
 
 pointLight = new THREE.PointLight(0xFFFFFF)
 
-pointLight.position.x = 300
+pointLight.position.x = 700
 pointLight.position.y = -250
 pointLight.position.z = 500
 
@@ -73,9 +73,18 @@ for hexX in [0..12]
         hexagon.position.y = y
         hexagons.add hexagon
         uuidToHex.set hexagon.uuid, [hexX, hexY]
-        hexToUuid.set [hexX, hexY], hexagon.uuid
+        hexToUuid.set String([hexX, hexY]), hexagon.uuid
 
 scene.add hexagons
+
+getAdjacentHexes = ([x, y]) ->
+    return (
+        if x%2 is 0
+            [[x-1, y-1],[x-1, y],[x, y-1],[x, y+1],[x+1, y-1],[x+1, y]]
+        else
+            [[x-1, y],[x-1, y+1],[x, y-1],[x, y+1],[x+1, y],[x+1, y+1]]
+    )
+
 
 class Player
     constructor: ->
@@ -177,12 +186,20 @@ render = ->
 
     intersects = raycaster.intersectObjects(hexagons.children)
     intersectUuids = new Set()
+    adjacentUuids = new Set()
+
     for i in intersects
         intersectUuids.add i.object.uuid
+        hex = uuidToHex.get i.object.uuid
+        for h in getAdjacentHexes hex
+            adjacentUuids.add hexToUuid.get String(h)
+        break
 
     for c in hexagons.children
         if intersectUuids.has c.uuid
             c.material.color.set "#ff0000"
+        else if adjacentUuids.has c.uuid
+            c.material.color.set "#43F58C"
         else
             c.material.color.set "#00b2fc"
 
