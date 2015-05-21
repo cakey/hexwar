@@ -4,6 +4,10 @@ React = require 'React'
 PrismGeometry = require './PrismGeometry'
 Hex = require '../lib/Hex'
 
+Colors =
+    purple: "#9b59b6"
+    red: "#e74c3c"
+    selected: "#bdc3c7"
 
 WIDTH = window.innerWidth
 HEIGHT = window.innerHeight
@@ -103,7 +107,7 @@ class Player
     constructor: ->
         @coneHeight = 80
         @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
-        @material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
+        @material = new THREE.MeshBasicMaterial( { color: "#ffffff" } )
         @mesh = new THREE.Mesh( @geometry, @material )
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
@@ -118,11 +122,11 @@ class Player
     setTeam: (team) ->
         @team = team
         if team == 0
-            @material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
-            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#bdc3c7" } )
+            @material = new THREE.MeshBasicMaterial( { color: Colors.purple } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
         else if team == 1
-            @material = new THREE.MeshBasicMaterial( { color: "#e74c3c" } )
-            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#bdc3c7" } )
+            @material = new THREE.MeshBasicMaterial( { color: Colors.red } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
 
         @mesh.material = @material
 
@@ -257,7 +261,7 @@ PlayerUI = React.createClass
         style =
             width: 220
             height: 140
-            backgroundColor: "rgba(245, 245, 255, 0.9)"
+            backgroundColor: [Colors.purple, Colors.red][@props.gameState.currentTeamTurn]
             borderTopRightRadius: 200
             boxShadow: "4px -4px 12px 12px rgba(0, 0, 0, 0.2)"
             position: "absolute"
@@ -266,7 +270,7 @@ PlayerUI = React.createClass
             fontFamily: "Open Sans"
             left: 0
             bottom: 0
-            color: "#555555"
+            color: "#ffffff"
         <div style={style} className="noSelect">
             { @props.gameState.getTeamName() } turn<br />
             Turn {@props.gameState.turn} / 60 <br />
