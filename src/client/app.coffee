@@ -81,16 +81,6 @@ for hexX in [0..12]
 
 scene.add hexagons
 
-
-getAdjacentHexes = ([x, y]) ->
-    return (
-        if x%2 is 0
-            [[x-1, y-1],[x-1, y],[x, y-1],[x, y+1],[x+1, y-1],[x+1, y]]
-        else
-            [[x-1, y],[x-1, y+1],[x, y-1],[x, y+1],[x+1, y],[x+1, y+1]]
-    )
-
-
 class GameState
     constructor: ->
         @currentTeamTurn = 0
@@ -129,10 +119,10 @@ class Player
         @team = team
         if team == 0
             @material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
-            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#95a5a6" } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#bdc3c7" } )
         else if team == 1
             @material = new THREE.MeshBasicMaterial( { color: "#e74c3c" } )
-            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#95a5a6" } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#bdc3c7" } )
 
         @mesh.material = @material
 
