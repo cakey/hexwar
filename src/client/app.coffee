@@ -2,6 +2,7 @@ _ = require 'lodash'
 React = require 'React'
 
 PrismGeometry = require './PrismGeometry'
+Hex = require '../lib/Hex'
 
 
 WIDTH = window.innerWidth
@@ -79,6 +80,7 @@ for hexX in [0..12]
         hexToUuid.set String([hexX, hexY]), hexagon.uuid
 
 scene.add hexagons
+
 
 getAdjacentHexes = ([x, y]) ->
     return (
@@ -233,7 +235,7 @@ render = ->
     for i in intersects
         intersectUuids.add i.object.uuid
         hex = uuidToHex.get i.object.uuid
-        for h in getAdjacentHexes hex
+        for h in Hex.getAdjacent hex
             adjacentUuids.add hexToUuid.get String(h)
         break
 
@@ -293,7 +295,3 @@ renderUI = (gameState) ->
 
 renderUI(gameState)
 
-    # React.render(
-    #     <Arena gameState={gameState} canvas={canvas} camera={camera} UIPlayer={focusedUIPlayer} />
-    #     document.getElementById('arena')
-    # )
