@@ -107,16 +107,20 @@ class Player
     setTeam: (team) ->
         @team = team
         if team == 1
-            @mesh.material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
+            @material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#8e44ad" } )
         else if team == 2
-            @mesh.material = new THREE.MeshBasicMaterial( { color: "#e74c3c" } )
+            @material = new THREE.MeshBasicMaterial( { color: "#e74c3c" } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#c0392b" } )
+
+        @mesh.material = @material
 
     setState: (@state) ->
         switch @state
             when "selected"
-                @material.color.set "#e74c3c"
+                @mesh.material = @selectedMaterial
             when "none"
-                @material.color.set "#9b59b6"
+                @mesh.material = @material
 
     update: ->
         if @state is "selected"
