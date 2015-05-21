@@ -87,6 +87,7 @@ getAdjacentHexes = ([x, y]) ->
     )
 
 
+
 class Player
     constructor: ->
         @coneHeight = 80
@@ -102,6 +103,13 @@ class Player
         {@x, @y} = hexTo3d @hex
         @mesh.position.x = @x
         @mesh.position.y = @y
+
+    setTeam: (team) ->
+        @team = team
+        if team == 1
+            @mesh.material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
+        else if team == 2
+            @mesh.material = new THREE.MeshBasicMaterial( { color: "#e74c3c" } )
 
     setState: (@state) ->
         switch @state
@@ -120,9 +128,10 @@ class GameView
         @players = []
         @selectedPlayer = null
 
-    newPlayer: (hex) ->
+    newPlayer: (hex, team) ->
         p = new Player()
         p.setPosition hex
+        p.setTeam team
         @players.push p
         scene.add p.mesh
 
@@ -147,9 +156,12 @@ class GameView
             @selectedPlayer = null
 
 gameView = new GameView()
-gameView.newPlayer [0,1]
-gameView.newPlayer [0,3]
-gameView.newPlayer [0,5]
+gameView.newPlayer [0,1], 1
+gameView.newPlayer [0,3], 1
+gameView.newPlayer [0,5], 1
+gameView.newPlayer [12,1], 2
+gameView.newPlayer [12,3], 2
+gameView.newPlayer [12,5], 2
 
 renderer.setClearColor 0x333333, 1
 renderer.setSize WIDTH, HEIGHT
