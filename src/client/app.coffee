@@ -4,6 +4,10 @@ React = require 'React'
 PrismGeometry = require './PrismGeometry'
 Hex = require '../lib/Hex'
 
+Colors =
+    purple: "#9b59b6"
+    red: "#e74c3c"
+    selected: "#bdc3c7"
 
 WIDTH = window.innerWidth
 HEIGHT = window.innerHeight
@@ -38,6 +42,8 @@ pointLight.position.y = -250
 pointLight.position.z = 500
 
 scene.add(pointLight)
+
+TEAM_NAMES = ["Purple", "Red"]
 
 
 halfEdge = 40
@@ -79,11 +85,29 @@ for hexX in [0..12]
 
 scene.add hexagons
 
+class GameState
+    constructor: ->
+        @currentTeamTurn = 0
+        @turn = 1
+
+
+    nextTurn: ->
+        if @currentTeamTurn == 0
+            @currentTeamTurn = 1
+        else
+            @currentTeamTurn = 0
+        @turn++
+        renderUI(this)
+
+    getTeamName: ->
+        return TEAM_NAMES[@currentTeamTurn]
+
+
 class Player
     constructor: ->
         @coneHeight = 80
         @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
-        @material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
+        @material = new THREE.MeshBasicMaterial( { color: "#ffffff" } )
         @mesh = new THREE.Mesh( @geometry, @material )
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
@@ -95,12 +119,23 @@ class Player
         @mesh.position.x = @x
         @mesh.position.y = @y
 
+    setTeam: (team) ->
+        @team = team
+        if team == 0
+            @material = new THREE.MeshBasicMaterial( { color: Colors.purple } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
+        else if team == 1
+            @material = new THREE.MeshBasicMaterial( { color: Colors.red } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
+
+        @mesh.material = @material
+
     setState: (@state) ->
         switch @state
             when "selected"
-                @material.color.set "#e74c3c"
+                @mesh.material = @selectedMaterial
             when "none"
-                @material.color.set "#9b59b6"
+                @mesh.material = @material
 
     update: ->
         if @state is "selected"
@@ -112,9 +147,10 @@ class GameView
         @players = []
         @selectedPlayer = null
 
-    newPlayer: (hex) ->
+    newPlayer: (hex, team) ->
         p = new Player()
         p.setPosition hex
+        p.setTeam team
         @players.push p
         scene.add p.mesh
 
@@ -126,22 +162,30 @@ class GameView
         if not @selectedPlayer?
             for player, i in @players
                 if _.isEqual selectedHex, player.hex
-                    player.setState "selected"
-                    @selectedPlayer = player
+                    if gameState.currentTeamTurn == player.team
+                        player.setState "selected"
+                        @selectedPlayer = player
         else
             @selectedPlayer.setPosition selectedHex
             @selectedPlayer.setState "none"
             @selectedPlayer = null
+            gameState.nextTurn()
 
     deselect: ->
         if @selectedPlayer?
             @selectedPlayer.setState "none"
             @selectedPlayer = null
 
+
+gameState = new GameState()
+
 gameView = new GameView()
-gameView.newPlayer [0,1]
-gameView.newPlayer [0,3]
-gameView.newPlayer [0,5]
+gameView.newPlayer [0,1], 0
+gameView.newPlayer [0,3], 0
+gameView.newPlayer [0,5], 0
+gameView.newPlayer [12,1], 1
+gameView.newPlayer [12,3], 1
+gameView.newPlayer [12,5], 1
 
 renderer.setClearColor 0x333333, 1
 renderer.setSize WIDTH, HEIGHT
@@ -152,6 +196,7 @@ raycaster = new THREE.Raycaster()
 mouseVector = new THREE.Vector3()
 mouseVector.x = 0
 mouseVector.y = 0
+
 
 onClick = (e) ->
     raycaster.setFromCamera( mouseVector, camera )
@@ -216,7 +261,7 @@ PlayerUI = React.createClass
         style =
             width: 220
             height: 140
-            backgroundColor: "rgba(245, 245, 255, 0.9)"
+            backgroundColor: [Colors.purple, Colors.red][@props.gameState.currentTeamTurn]
             borderTopRightRadius: 200
             boxShadow: "4px -4px 12px 12px rgba(0, 0, 0, 0.2)"
             position: "absolute"
@@ -225,17 +270,22 @@ PlayerUI = React.createClass
             fontFamily: "Open Sans"
             left: 0
             bottom: 0
-            color: "#555555"
+            color: "#ffffff"
         <div style={style} className="noSelect">
-            Your turn. <br />
-            Turn 34 / 60 <br />
+            { @props.gameState.getTeamName() } turn<br />
+            Turn {@props.gameState.turn} / 60 <br />
             1 Action | 0 Move <br />
             84 s  <br />
             19 tiles
         </div>
 
-React.render(
-    <PlayerUI />
-    document.getElementById('ui_container')
-)
+
+renderUI = (gameState) ->
+    React.render(
+        <PlayerUI gameState={gameState}/>
+        document.getElementById('ui_container')
+    )
+
+
+renderUI(gameState)
 
