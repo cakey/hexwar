@@ -38,7 +38,7 @@ pointLight.position.z = 500
 
 scene.add(pointLight)
 
-currentTeamTurn = 1
+TEAM_NAMES = ["Purple", "Red"]
 
 
 halfEdge = 40
@@ -89,6 +89,23 @@ getAdjacentHexes = ([x, y]) ->
     )
 
 
+class GameState
+    constructor: ->
+        @currentTeamTurn = 0
+        @turn = 1
+
+
+    nextTurn: ->
+        if @currentTeamTurn == 0
+            @currentTeamTurn = 1
+        else
+            @currentTeamTurn = 0
+        @turn++
+        renderUI(this)
+
+    getTeamName: ->
+        return TEAM_NAMES[@currentTeamTurn]
+
 
 class Player
     constructor: ->
@@ -108,10 +125,10 @@ class Player
 
     setTeam: (team) ->
         @team = team
-        if team == 1
+        if team == 0
             @material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#8e44ad" } )
-        else if team == 2
+        else if team == 1
             @material = new THREE.MeshBasicMaterial( { color: "#e74c3c" } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#c0392b" } )
 
@@ -149,27 +166,30 @@ class GameView
         if not @selectedPlayer?
             for player, i in @players
                 if _.isEqual selectedHex, player.hex
-                    if currentTeamTurn == player.team
+                    if gameState.currentTeamTurn == player.team
                         player.setState "selected"
                         @selectedPlayer = player
         else
             @selectedPlayer.setPosition selectedHex
             @selectedPlayer.setState "none"
             @selectedPlayer = null
-            nextTurn()
+            gameState.nextTurn()
 
     deselect: ->
         if @selectedPlayer?
             @selectedPlayer.setState "none"
             @selectedPlayer = null
 
+
+gameState = new GameState()
+
 gameView = new GameView()
-gameView.newPlayer [0,1], 1
-gameView.newPlayer [0,3], 1
-gameView.newPlayer [0,5], 1
-gameView.newPlayer [12,1], 2
-gameView.newPlayer [12,3], 2
-gameView.newPlayer [12,5], 2
+gameView.newPlayer [0,1], 0
+gameView.newPlayer [0,3], 0
+gameView.newPlayer [0,5], 0
+gameView.newPlayer [12,1], 1
+gameView.newPlayer [12,3], 1
+gameView.newPlayer [12,5], 1
 
 renderer.setClearColor 0x333333, 1
 renderer.setSize WIDTH, HEIGHT
@@ -180,13 +200,6 @@ raycaster = new THREE.Raycaster()
 mouseVector = new THREE.Vector3()
 mouseVector.x = 0
 mouseVector.y = 0
-
-
-nextTurn = ->
-    if currentTeamTurn == 1
-        currentTeamTurn = 2
-    else
-        currentTeamTurn = 1
 
 
 onClick = (e) ->
@@ -263,17 +276,22 @@ PlayerUI = React.createClass
             bottom: 0
             color: "#555555"
         <div style={style} className="noSelect">
-            Your turn. <br />
-            Turn 34 / 60 <br />
+            { @props.gameState.getTeamName() } turn<br />
+            Turn {@props.gameState.turn} / 60 <br />
             1 Action | 0 Move <br />
             84 s  <br />
             19 tiles
         </div>
 
-React.render(
-    <PlayerUI />
-    document.getElementById('ui_container')
-)
+
+renderUI = (gameState) ->
+    React.render(
+        <PlayerUI gameState={gameState}/>
+        document.getElementById('ui_container')
+    )
+
+
+renderUI(gameState)
 
     # React.render(
     #     <Arena gameState={gameState} canvas={canvas} camera={camera} UIPlayer={focusedUIPlayer} />
