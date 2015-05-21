@@ -129,10 +129,10 @@ class Player
         @team = team
         if team == 0
             @material = new THREE.MeshBasicMaterial( { color: "#9b59b6" } )
-            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#8e44ad" } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#95a5a6" } )
         else if team == 1
             @material = new THREE.MeshBasicMaterial( { color: "#e74c3c" } )
-            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#c0392b" } )
+            @selectedMaterial = new THREE.MeshBasicMaterial( { color: "#95a5a6" } )
 
         @mesh.material = @material
 
