@@ -38,6 +38,8 @@ pointLight.position.z = 500
 
 scene.add(pointLight)
 
+currentTeamTurn = 1
+
 
 halfEdge = 40
 stalk = halfEdge*Math.tan(Math.PI/3)
@@ -147,12 +149,14 @@ class GameView
         if not @selectedPlayer?
             for player, i in @players
                 if _.isEqual selectedHex, player.hex
-                    player.setState "selected"
-                    @selectedPlayer = player
+                    if currentTeamTurn == player.team
+                        player.setState "selected"
+                        @selectedPlayer = player
         else
             @selectedPlayer.setPosition selectedHex
             @selectedPlayer.setState "none"
             @selectedPlayer = null
+            nextTurn()
 
     deselect: ->
         if @selectedPlayer?
@@ -176,6 +180,14 @@ raycaster = new THREE.Raycaster()
 mouseVector = new THREE.Vector3()
 mouseVector.x = 0
 mouseVector.y = 0
+
+
+nextTurn = ->
+    if currentTeamTurn == 1
+        currentTeamTurn = 2
+    else
+        currentTeamTurn = 1
+
 
 onClick = (e) ->
     raycaster.setFromCamera( mouseVector, camera )
