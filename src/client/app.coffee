@@ -3,6 +3,7 @@ React = require 'React'
 
 PrismGeometry = require './PrismGeometry'
 Hex = require '../lib/Hex'
+Skill = require './skill'
 
 Colors =
     purple: "#9b59b6"
@@ -103,6 +104,8 @@ class GameState
         return TEAM_NAMES[@currentTeamTurn]
 
 
+
+
 class Player
     constructor: ->
         @coneHeight = 80
@@ -198,6 +201,11 @@ mouseVector.x = 0
 mouseVector.y = 0
 
 
+
+castSkill = (hex, skill) ->
+    skill.cast(hex)
+
+
 onClick = (e) ->
     raycaster.setFromCamera( mouseVector, camera )
 
@@ -214,6 +222,19 @@ onMouseMove = (e) ->
     mouseVector.x = 2 * (e.clientX / window.innerWidth) - 1
     mouseVector.y = 1 - 2 * ( e.clientY / window.innerHeight )
 
+
+onKeyPress = (e) ->
+    console.log("KEY: ", e.keyCode)
+
+    if e.keyCode == 12
+        raycaster.setFromCamera( mouseVector, camera )
+
+        intersects = raycaster.intersectObjects(hexagons.children)
+        if intersects.length > 0
+            hexUuid = intersects[0].object.uuid
+            clickedHex = uuidToHex.get hexUuid
+            barrier = new SkillBarrier()
+            castSkill(clickedHex, barrier)
 
 update = ->
     gameView.update()
@@ -252,6 +273,7 @@ onResize = ->
 window.addEventListener 'resize', onResize, false
 window.addEventListener 'mousemove', onMouseMove, false
 window.addEventListener 'click', onClick, false
+window.addEventListener 'keypress', onKeyPress, false
 
 update()
 render()
