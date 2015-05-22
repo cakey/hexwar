@@ -12,6 +12,7 @@ Colors =
     baseTile: "#00b2fc"
     highlightTile: "#f39c12"
     pathTile: "#2ecc71"
+    outofrangeTile: "grey"
 
 
 WIDTH = window.innerWidth
@@ -133,10 +134,12 @@ class Player
 
 class GameView
     constructor: ->
+        @movesPerTurn = 4
         @players = []
         @selectedPlayer = null
         @currentTeamTurn = 0
         @turn = 1
+        @movesRemaining = @movesPerTurn
 
     nextTurn: ->
         if @currentTeamTurn is 0
@@ -144,6 +147,7 @@ class GameView
         else
             @currentTeamTurn = 0
         @turn++
+        @movesRemaining = @movesPerTurn
         renderUI(this)
 
     getTeamName: ->
@@ -168,10 +172,15 @@ class GameView
                         player.setState "selected"
                         @selectedPlayer = player
         else
-            @selectedPlayer.setPosition selectedHex
-            @selectedPlayer.setState "none"
-            @selectedPlayer = null
-            @nextTurn()
+            path = Hex.shortestPath @selectedPlayer.hex, selectedHex, validHexes
+            if (path.length-1) <= @movesRemaining
+                @selectedPlayer.setPosition selectedHex
+                @selectedPlayer.setState "none"
+                @selectedPlayer = null
+                @movesRemaining -= (path.length - 1)
+                renderUI(this)
+                if @movesRemaining is 0
+                    @nextTurn()
 
     deselect: ->
         if @selectedPlayer?
@@ -225,20 +234,26 @@ render = ->
     intersects = raycaster.intersectObjects(hexagons.children)
     intersectUuids = new Set()
     pathUuids = new Set()
+    outofRangeUuids = new Set()
 
     for i in intersects
         intersectUuids.add i.object.uuid
         hex = uuidToHex.get i.object.uuid
         if gameView.selectedPlayer?
-            for h in Hex.shortestPath hex, gameView.selectedPlayer.hex, validHexes
-                pathUuids.add hexToUuid.get String(h)
+            for h, i in Hex.shortestPath gameView.selectedPlayer.hex, hex, validHexes
+                if i <= gameView.movesRemaining
+                    pathUuids.add hexToUuid.get String(h)
+                else
+                    outofRangeUuids.add hexToUuid.get String(h)
         break
 
     for c in hexagons.children
-        if intersectUuids.has c.uuid
-            c.material.color.set Colors.highlightTile
+        if outofRangeUuids.has c.uuid
+            c.material.color.set Colors.outofrangeTile
         else if pathUuids.has c.uuid
             c.material.color.set Colors.pathTile
+        else if intersectUuids.has c.uuid
+            c.material.color.set Colors.highlightTile
         else
             c.material.color.set Colors.baseTile
 
@@ -275,7 +290,7 @@ PlayerUI = React.createClass
         <div style={style} className="noSelect">
             { @props.gameView.getTeamName() } turn<br />
             Turn {@props.gameView.turn} / 60 <br />
-            1 Action | 0 Move <br />
+            {@props.gameView.movesRemaining} Movements <br />
             84 s  <br />
             19 tiles
         </div>
