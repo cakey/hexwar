@@ -339,7 +339,7 @@ PlayerUI = React.createClass
         <div style={style} className="noSelect">
             { @props.gameView.getTeamName() } turn<br />
             Turn {@props.gameView.turn} / 60 <br />
-            {@props.gameView.movesRemaining} Movements <br />
+            {("O" for x in [0...@props.gameView.movesRemaining]).join(" ")} <br />
             84 s  <br />
             19 tiles
         </div>
