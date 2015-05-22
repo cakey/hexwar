@@ -85,24 +85,6 @@ for hexX in [0..12]
 
 scene.add hexagons
 
-class GameState
-    constructor: ->
-        @currentTeamTurn = 0
-        @turn = 1
-
-
-    nextTurn: ->
-        if @currentTeamTurn == 0
-            @currentTeamTurn = 1
-        else
-            @currentTeamTurn = 0
-        @turn++
-        renderUI(this)
-
-    getTeamName: ->
-        return TEAM_NAMES[@currentTeamTurn]
-
-
 class Player
     constructor: ->
         @coneHeight = 80
@@ -121,10 +103,10 @@ class Player
 
     setTeam: (team) ->
         @team = team
-        if team == 0
+        if team is 0
             @material = new THREE.MeshBasicMaterial( { color: Colors.purple } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
-        else if team == 1
+        else if team is 1
             @material = new THREE.MeshBasicMaterial( { color: Colors.red } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
 
@@ -146,6 +128,19 @@ class GameView
     constructor: ->
         @players = []
         @selectedPlayer = null
+        @currentTeamTurn = 0
+        @turn = 1
+
+    nextTurn: ->
+        if @currentTeamTurn is 0
+            @currentTeamTurn = 1
+        else
+            @currentTeamTurn = 0
+        @turn++
+        renderUI(this)
+
+    getTeamName: ->
+        return TEAM_NAMES[@currentTeamTurn]
 
     newPlayer: (hex, team) ->
         p = new Player()
@@ -162,22 +157,20 @@ class GameView
         if not @selectedPlayer?
             for player, i in @players
                 if _.isEqual selectedHex, player.hex
-                    if gameState.currentTeamTurn == player.team
+                    if @currentTeamTurn is player.team
                         player.setState "selected"
                         @selectedPlayer = player
         else
             @selectedPlayer.setPosition selectedHex
             @selectedPlayer.setState "none"
             @selectedPlayer = null
-            gameState.nextTurn()
+            @nextTurn()
 
     deselect: ->
         if @selectedPlayer?
             @selectedPlayer.setState "none"
             @selectedPlayer = null
 
-
-gameState = new GameState()
 
 gameView = new GameView()
 gameView.newPlayer [0,1], 0
@@ -262,7 +255,7 @@ PlayerUI = React.createClass
         style =
             width: 220
             height: 140
-            backgroundColor: [Colors.purple, Colors.red][@props.gameState.currentTeamTurn]
+            backgroundColor: [Colors.purple, Colors.red][@props.gameView.currentTeamTurn]
             borderTopRightRadius: 200
             boxShadow: "4px -4px 12px 12px rgba(0, 0, 0, 0.2)"
             position: "absolute"
@@ -273,20 +266,20 @@ PlayerUI = React.createClass
             bottom: 0
             color: "#ffffff"
         <div style={style} className="noSelect">
-            { @props.gameState.getTeamName() } turn<br />
-            Turn {@props.gameState.turn} / 60 <br />
+            { @props.gameView.getTeamName() } turn<br />
+            Turn {@props.gameView.turn} / 60 <br />
             1 Action | 0 Move <br />
             84 s  <br />
             19 tiles
         </div>
 
 
-renderUI = (gameState) ->
+renderUI = (gameView) ->
     React.render(
-        <PlayerUI gameState={gameState}/>
+        <PlayerUI gameView={gameView}/>
         document.getElementById('ui_container')
     )
 
 
-renderUI(gameState)
+renderUI(gameView)
 
