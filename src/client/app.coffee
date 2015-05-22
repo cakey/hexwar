@@ -8,6 +8,11 @@ Colors =
     purple: "#9b59b6"
     red: "#e74c3c"
     selected: "#bdc3c7"
+    white: "#ffffff"
+    baseTile: "#00b2fc"
+    highlightTile: "#f39c12"
+    pathTile: "#2ecc71"
+
 
 WIDTH = window.innerWidth
 HEIGHT = window.innerHeight
@@ -91,7 +96,7 @@ class Player
     constructor: ->
         @coneHeight = 80
         @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
-        @material = new THREE.MeshBasicMaterial( { color: "#ffffff" } )
+        @material = new THREE.MeshBasicMaterial( { color: Colors.white } )
         @mesh = new THREE.Mesh( @geometry, @material )
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
@@ -231,11 +236,11 @@ render = ->
 
     for c in hexagons.children
         if intersectUuids.has c.uuid
-            c.material.color.set "#f39c12"
+            c.material.color.set Colors.highlightTile
         else if pathUuids.has c.uuid
-            c.material.color.set "#2ecc71"
+            c.material.color.set Colors.pathTile
         else
-            c.material.color.set "#00b2fc"
+            c.material.color.set Colors.baseTile
 
     renderer.render(scene, camera)
     window.requestAnimationFrame render
@@ -266,7 +271,7 @@ PlayerUI = React.createClass
             fontFamily: "Open Sans"
             left: 0
             bottom: 0
-            color: "#ffffff"
+            color: Colors.white
         <div style={style} className="noSelect">
             { @props.gameView.getTeamName() } turn<br />
             Turn {@props.gameView.turn} / 60 <br />
