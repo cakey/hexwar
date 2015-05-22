@@ -3,12 +3,18 @@ React = require 'React'
 
 PrismGeometry = require './PrismGeometry'
 Hex = require '../lib/Hex'
-Skill = require './skill'
+# Skill = require './skill'
+# SkillBarrier = require './skill'
 
 Colors =
     purple: "#9b59b6"
     red: "#e74c3c"
     selected: "#bdc3c7"
+    white: "#ffffff"
+    baseTile: "#00b2fc"
+    highlightTile: "#f39c12"
+    pathTile: "#2ecc71"
+
 
 WIDTH = window.innerWidth
 HEIGHT = window.innerHeight
@@ -70,6 +76,7 @@ hexTo3d = ([hexX, hexY]) ->
 
 uuidToHex = new Map()
 hexToUuid = new Map()
+validHexes = new Set()
 
 # add base tiles to render
 for hexX in [0..12]
@@ -83,31 +90,13 @@ for hexX in [0..12]
         hexagons.add hexagon
         uuidToHex.set hexagon.uuid, [hexX, hexY]
         hexToUuid.set String([hexX, hexY]), hexagon.uuid
+        validHexes.add String([hexX, hexY])
 
 scene.add hexagons
 
-class GameState
-    constructor: ->
-        @currentTeamTurn = 0
-        @turn = 1
 
-
-    nextTurn: ->
-        if @currentTeamTurn == 0
-            @currentTeamTurn = 1
-        else
-            @currentTeamTurn = 0
-        @turn++
-        renderUI(this)
-
-    getTeamName: ->
-        return TEAM_NAMES[@currentTeamTurn]
-
-
-
-
-class Player
-    constructor: ->
+class Barrier
+    constructor: ()->
         @coneHeight = 80
         @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
         @material = new THREE.MeshBasicMaterial( { color: "#ffffff" } )
@@ -121,13 +110,31 @@ class Player
         {@x, @y} = hexTo3d @hex
         @mesh.position.x = @x
         @mesh.position.y = @y
+        scene.add @mesh
+
+
+class Player
+    constructor: ->
+        @coneHeight = 80
+        @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
+        @material = new THREE.MeshBasicMaterial( { color: Colors.white } )
+        @mesh = new THREE.Mesh( @geometry, @material )
+        @mesh.rotation.x = Math.PI/2
+        @mesh.position.z = tileHeight + @coneHeight/2
+        @setPosition [0,0]
+
+    setPosition: (hex) ->
+        @hex = hex
+        {@x, @y} = hexTo3d @hex
+        @mesh.position.x = @x
+        @mesh.position.y = @y
 
     setTeam: (team) ->
         @team = team
-        if team == 0
+        if team is 0
             @material = new THREE.MeshBasicMaterial( { color: Colors.purple } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
-        else if team == 1
+        else if team is 1
             @material = new THREE.MeshBasicMaterial( { color: Colors.red } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
 
@@ -149,6 +156,19 @@ class GameView
     constructor: ->
         @players = []
         @selectedPlayer = null
+        @currentTeamTurn = 0
+        @turn = 1
+
+    nextTurn: ->
+        if @currentTeamTurn is 0
+            @currentTeamTurn = 1
+        else
+            @currentTeamTurn = 0
+        @turn++
+        renderUI(this)
+
+    getTeamName: ->
+        return TEAM_NAMES[@currentTeamTurn]
 
     newPlayer: (hex, team) ->
         p = new Player()
@@ -165,22 +185,20 @@ class GameView
         if not @selectedPlayer?
             for player, i in @players
                 if _.isEqual selectedHex, player.hex
-                    if gameState.currentTeamTurn == player.team
+                    if @currentTeamTurn is player.team
                         player.setState "selected"
                         @selectedPlayer = player
         else
             @selectedPlayer.setPosition selectedHex
             @selectedPlayer.setState "none"
             @selectedPlayer = null
-            gameState.nextTurn()
+            @nextTurn()
 
     deselect: ->
         if @selectedPlayer?
             @selectedPlayer.setState "none"
             @selectedPlayer = null
 
-
-gameState = new GameState()
 
 gameView = new GameView()
 gameView.newPlayer [0,1], 0
@@ -199,6 +217,24 @@ raycaster = new THREE.Raycaster()
 mouseVector = new THREE.Vector3()
 mouseVector.x = 0
 mouseVector.y = 0
+
+
+class Skill
+    constructor: ->
+        console.log("load")
+
+
+    cast: ->
+
+
+class SkillBarrier extends Skill
+    constructor: ->
+        super()
+
+    cast: (hex)->
+        super()
+        barrier = new Barrier()
+        barrier.setPosition(hex)
 
 
 
@@ -226,15 +262,15 @@ onMouseMove = (e) ->
 onKeyPress = (e) ->
     console.log("KEY: ", e.keyCode)
 
-    if e.keyCode == 12
+    if e.keyCode == 98
         raycaster.setFromCamera( mouseVector, camera )
 
         intersects = raycaster.intersectObjects(hexagons.children)
         if intersects.length > 0
             hexUuid = intersects[0].object.uuid
             clickedHex = uuidToHex.get hexUuid
-            barrier = new SkillBarrier()
-            castSkill(clickedHex, barrier)
+            barrierSkill = new SkillBarrier()
+            castSkill(clickedHex, barrierSkill)
 
 update = ->
     gameView.update()
@@ -245,22 +281,23 @@ render = ->
 
     intersects = raycaster.intersectObjects(hexagons.children)
     intersectUuids = new Set()
-    adjacentUuids = new Set()
+    pathUuids = new Set()
 
     for i in intersects
         intersectUuids.add i.object.uuid
         hex = uuidToHex.get i.object.uuid
-        for h in Hex.getAdjacent hex
-            adjacentUuids.add hexToUuid.get String(h)
+        if gameView.selectedPlayer?
+            for h in Hex.shortestPath hex, gameView.selectedPlayer.hex, validHexes
+                pathUuids.add hexToUuid.get String(h)
         break
 
     for c in hexagons.children
         if intersectUuids.has c.uuid
-            c.material.color.set "#f39c12"
-        else if adjacentUuids.has c.uuid
-            c.material.color.set "#2ecc71"
+            c.material.color.set Colors.highlightTile
+        else if pathUuids.has c.uuid
+            c.material.color.set Colors.pathTile
         else
-            c.material.color.set "#00b2fc"
+            c.material.color.set Colors.baseTile
 
     renderer.render(scene, camera)
     window.requestAnimationFrame render
@@ -283,7 +320,7 @@ PlayerUI = React.createClass
         style =
             width: 220
             height: 140
-            backgroundColor: [Colors.purple, Colors.red][@props.gameState.currentTeamTurn]
+            backgroundColor: [Colors.purple, Colors.red][@props.gameView.currentTeamTurn]
             borderTopRightRadius: 200
             boxShadow: "4px -4px 12px 12px rgba(0, 0, 0, 0.2)"
             position: "absolute"
@@ -292,22 +329,22 @@ PlayerUI = React.createClass
             fontFamily: "Open Sans"
             left: 0
             bottom: 0
-            color: "#ffffff"
+            color: Colors.white
         <div style={style} className="noSelect">
-            { @props.gameState.getTeamName() } turn<br />
-            Turn {@props.gameState.turn} / 60 <br />
+            { @props.gameView.getTeamName() } turn<br />
+            Turn {@props.gameView.turn} / 60 <br />
             1 Action | 0 Move <br />
             84 s  <br />
             19 tiles
         </div>
 
 
-renderUI = (gameState) ->
+renderUI = (gameView) ->
     React.render(
-        <PlayerUI gameState={gameState}/>
+        <PlayerUI gameView={gameView}/>
         document.getElementById('ui_container')
     )
 
 
-renderUI(gameState)
+renderUI(gameView)
 
