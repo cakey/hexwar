@@ -224,19 +224,20 @@ render = ->
 
     intersects = raycaster.intersectObjects(hexagons.children)
     intersectUuids = new Set()
-    adjacentUuids = new Set()
+    pathUuids = new Set()
 
     for i in intersects
         intersectUuids.add i.object.uuid
         hex = uuidToHex.get i.object.uuid
-        for h in Hex.getAdjacent hex
-            adjacentUuids.add hexToUuid.get String(h)
+        if gameView.selectedPlayer?
+            for h in Hex.shortestPath hex, gameView.selectedPlayer.hex
+                pathUuids.add hexToUuid.get String(h)
         break
 
     for c in hexagons.children
         if intersectUuids.has c.uuid
             c.material.color.set "#f39c12"
-        else if adjacentUuids.has c.uuid
+        else if pathUuids.has c.uuid
             c.material.color.set "#2ecc71"
         else
             c.material.color.set "#00b2fc"

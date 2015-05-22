@@ -2,6 +2,8 @@ _ = require 'lodash'
 
 
 shortestPath = (startHex, endHex) ->
+    if not startHex? or not endHex?
+        throw new Error "start/end missing"
     visited = new Set([String(startHex)])
     checkQueue = [[startHex, [startHex]]]
     while checkQueue.length > 0
