@@ -69,6 +69,7 @@ hexTo3d = ([hexX, hexY]) ->
 
 uuidToHex = new Map()
 hexToUuid = new Map()
+validHexes = new Set()
 
 # add base tiles to render
 for hexX in [0..12]
@@ -82,6 +83,7 @@ for hexX in [0..12]
         hexagons.add hexagon
         uuidToHex.set hexagon.uuid, [hexX, hexY]
         hexToUuid.set String([hexX, hexY]), hexagon.uuid
+        validHexes.add String([hexX, hexY])
 
 scene.add hexagons
 
@@ -223,7 +225,7 @@ render = ->
         intersectUuids.add i.object.uuid
         hex = uuidToHex.get i.object.uuid
         if gameView.selectedPlayer?
-            for h in Hex.shortestPath hex, gameView.selectedPlayer.hex
+            for h in Hex.shortestPath hex, gameView.selectedPlayer.hex, validHexes
                 pathUuids.add hexToUuid.get String(h)
         break
 

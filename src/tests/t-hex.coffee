@@ -32,3 +32,16 @@ describe "Hex Algorithms", ->
         it "throw error on missing args", ->
             fn = -> Hex.shortestPath [1,1]
             expect(fn).to.throw /missing/
+
+        it "excludes invalid tiles", ->
+            validHexes = new Set ([
+                String([0,0]),
+                String([0,1]),
+                String([0,2]),
+                String([1,2]),
+                String([2,2]),
+                String([2,1]),
+                String([2,0])
+            ])
+            path = Hex.shortestPath [0,0], [2,0], validHexes
+            expect(path).to.deep.equal [[0,0],[0,1],[0,2],[1,2],[2,2],[2,1],[2,0]]
