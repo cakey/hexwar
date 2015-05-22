@@ -6,7 +6,9 @@ Hex = require '../lib/Hex'
 
 Colors =
     purple: "#9b59b6"
+    darkPurple: "#8e44ad"
     red: "#e74c3c"
+    darkRed: "#c0392b"
     selected: "#bdc3c7"
     white: "#ffffff"
     baseTile: "#00b2fc"
@@ -76,22 +78,58 @@ hexTo3d = ([hexX, hexY]) ->
 uuidToHex = new Map()
 hexToUuid = new Map()
 validHexes = new Set()
+uuidToTile = new Map()
+
+
+# to do: tile manager class
+class Tile
+    constructor: (x, y) ->
+        @material = new THREE.MeshBasicMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
+        @mesh = new THREE.Mesh( hexGeometry, @material )
+        @mesh.position.x = x
+        @mesh.position.y = y
+        @uuid = @mesh.uuid
+        @state = "none"
+        @team = null
+
+    setState: (newState) ->
+        switch newState
+            when "outofrange"
+                @material.color.set Colors.outofrangeTile
+            when "onPath"
+                @material.color.set Colors.pathTile
+            when "highlight"
+                @material.color.set Colors.highlightTile
+
+        @state = newState
+
+    clearState: ->
+        @state = "none"
+        if not @team?
+            @material.color.set Colors.baseTile
+        else if @team is 0
+            @material.color.set Colors.purple
+        else if @team is 1
+            @material.color.set Colors.red
+
+    capture: (@team) ->
+
 
 # add base tiles to render
 for hexX in [0..12]
     height = if hexX%2 is 0 then 7 else 6
     for hexY in [0...height]
         {x, y} = hexTo3d [hexX, hexY]
-        material = new THREE.MeshBasicMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
-        hexagon = new THREE.Mesh( hexGeometry, material )
-        hexagon.position.x = x
-        hexagon.position.y = y
-        hexagons.add hexagon
-        uuidToHex.set hexagon.uuid, [hexX, hexY]
-        hexToUuid.set String([hexX, hexY]), hexagon.uuid
+        tile = new Tile x, y
+
+        hexagons.add tile.mesh
+        uuidToHex.set tile.uuid, [hexX, hexY]
+        uuidToTile.set tile.uuid, tile
+        hexToUuid.set String([hexX, hexY]), tile.uuid
         validHexes.add String([hexX, hexY])
 
 scene.add hexagons
+
 
 class Player
     constructor: ->
@@ -112,10 +150,10 @@ class Player
     setTeam: (team) ->
         @team = team
         if team is 0
-            @material = new THREE.MeshBasicMaterial( { color: Colors.purple } )
+            @material = new THREE.MeshBasicMaterial( { color: Colors.darkPurple } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
         else if team is 1
-            @material = new THREE.MeshBasicMaterial( { color: Colors.red } )
+            @material = new THREE.MeshBasicMaterial( { color: Colors.darkRed } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
 
         @mesh.material = @material
@@ -179,6 +217,12 @@ class GameView
                 @selectedPlayer = null
                 @movesRemaining -= (path.length - 1)
                 renderUI(this)
+
+                for hex in path
+                    uuid = hexToUuid.get String(hex)
+                    tile = uuidToTile.get uuid
+                    tile.capture @currentTeamTurn
+
                 if @movesRemaining is 0
                     @nextTurn()
 
@@ -252,14 +296,15 @@ render = ->
         break
 
     for c in hexagons.children
+        tile = uuidToTile.get c.uuid
         if outofRangeUuids.has c.uuid
-            c.material.color.set Colors.outofrangeTile
+            tile.setState "outofrange"
         else if pathUuids.has c.uuid
-            c.material.color.set Colors.pathTile
+            tile.setState "onPath"
         else if intersectUuids.has c.uuid
-            c.material.color.set Colors.highlightTile
+            tile.setState "highlight"
         else
-            c.material.color.set Colors.baseTile
+            tile.clearState()
 
     renderer.render(scene, camera)
     window.requestAnimationFrame render
