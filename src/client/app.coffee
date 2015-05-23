@@ -51,7 +51,7 @@ pointLight.position.x = 700
 pointLight.position.y = -250
 pointLight.position.z = 500
 
-scene.add(pointLight)
+# scene.add(pointLight) This is not doing anything atm
 
 TEAM_NAMES = ["Purple", "Red"]
 
@@ -136,10 +136,11 @@ scene.add hexagons
 
 
 class Barrier
-    constructor: ()->
+    constructor: (player)->
         @coneHeight = 80
-        @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
-        @material = new THREE.MeshBasicMaterial( { color: "#ffffff" } )
+        @player = player
+        @geometry = new THREE.CylinderGeometry(30, 30, @coneHeight, 30)
+        @material = new THREE.MeshBasicMaterial( { color: "#2c3e50" } )
         @mesh = new THREE.Mesh( @geometry, @material )
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
