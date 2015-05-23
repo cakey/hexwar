@@ -58,8 +58,8 @@ BOTTOM_LEFT = new THREE.Vector2( -halfEdge, -stalk )
 BOTTOM_RIGHT = new THREE.Vector2( halfEdge, -stalk )
 TOP_LEFT = new THREE.Vector2( -halfEdge, stalk )
 TOP_RIGHT = new THREE.Vector2( halfEdge, stalk )
-LEFT = new THREE.Vector2( -stalk, 0 )
-RIGHT = new THREE.Vector2( +stalk, 0 )
+LEFT = new THREE.Vector2( -halfEdge*2, 0 )
+RIGHT = new THREE.Vector2( +halfEdge*2, 0 )
 
 tileHeight = 3
 
@@ -68,9 +68,10 @@ hexGeometry = new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, 
 hexagons = new THREE.Object3D();
 
 hexTo3d = ([hexX, hexY]) ->
-    border = 4
-    x: (halfEdge+stalk+border*2) * hexX
-    y: (((stalk*2)+(border*1.5)*2) * hexY) + (if hexX%2 isnt 0 then (stalk)+border else 0)
+    border = 12
+    _edge = halfEdge*2
+    x: (((_edge)*3/2)+(border*(2/3))) * hexX
+    y: ((_edge*Math.sqrt(3)+border) * (hexY + (if hexX%2 isnt 0 then 0.5 else 0)))
 
 uuidToHex = new Map()
 hexToUuid = new Map()
