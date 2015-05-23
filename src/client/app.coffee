@@ -238,10 +238,12 @@ class GameView
 
         # calculate implicit territory control
         # players have 32/16/8/4/2/1 influence
-        # tiles need 10 influence to be captured
         # naive brute force approach - for each tile, lookup distance of each player
 
+        #influence to capture
         minInfluence = 16
+
+        # required influence advantage over enemy
         diffInfluence = 6
 
         lastInfluence = @totalInfluence
