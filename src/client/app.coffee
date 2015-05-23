@@ -3,8 +3,7 @@ React = require 'React'
 
 PrismGeometry = require './PrismGeometry'
 Hex = require '../lib/Hex'
-# Skill = require './skill'
-# SkillBarrier = require './skill'
+
 
 Colors =
     purple: "#9b59b6"
@@ -32,6 +31,17 @@ renderer = new THREE.WebGLRenderer({ antialias: true })
 
 camera = new THREE.PerspectiveCamera(VIEW_ANGLE,ASPECT,NEAR,FAR)
 
+renderer.shadowMapEnabled = true
+renderer.shadowMapSoft = true
+renderer.shadowCameraNear = 3
+renderer.shadowCameraFar = camera.far
+renderer.shadowCameraFov = 50
+renderer.shadowMapBias = 0.0039
+renderer.shadowMapDarkness = 0.5
+renderer.shadowMapWidth = 1024
+renderer.shadowMapHeight = 1024
+
+
 scene = new THREE.Scene()
 
 scene.add camera
@@ -45,13 +55,20 @@ camera.rotation.x = Math.PI/4
 camera.rotation.y = 0
 camera.rotation.z = 0
 
-pointLight = new THREE.PointLight(0xFFFFFF)
 
-pointLight.position.x = 700
-pointLight.position.y = -250
-pointLight.position.z = 500
 
-scene.add(pointLight)
+directionalLight = new THREE.DirectionalLight( 0xffffff, 0.9 )
+directionalLight.position.set(-0.4, -1, 1)
+directionalLight.castShadow = false
+directionalLight.shadowCameraVisible = true
+directionalLight.shadowCameraNear = 50
+directionalLight.shadowCameraFar = 6000
+
+light = new THREE.AmbientLight( 0x404040 )
+scene.add( light );
+
+scene.add( directionalLight )
+
 
 TEAM_NAMES = ["Purple", "Red"]
 
@@ -87,13 +104,14 @@ uuidToTile = new Map()
 # to do: tile manager class
 class Tile
     constructor: (x, y) ->
-        @material = new THREE.MeshBasicMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
+        @material = new THREE.MeshPhongMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
         @mesh = new THREE.Mesh( hexGeometry, @material )
         @mesh.position.x = x
         @mesh.position.y = y
         @uuid = @mesh.uuid
         @state = "none"
         @team = null
+        @mesh.receiveShadow = true
 
     setState: (newState) ->
         switch newState
@@ -138,8 +156,8 @@ scene.add hexagons
 class Barrier
     constructor: ()->
         @coneHeight = 80
-        @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
-        @material = new THREE.MeshBasicMaterial( { color: "#ffffff" } )
+        @geometry = new THREE.CylinderGeometry(30, 30, @coneHeight, 30)
+        @material = new THREE.MeshBasicMaterial( { color: "#2c3e50" } )
         @mesh = new THREE.Mesh( @geometry, @material )
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
@@ -163,6 +181,8 @@ class Player
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
         @setPosition [0,0]
+        @mesh.castShadow = true
+        @mesh.receiveShadow = true
 
     setPosition: (hex) ->
         @hex = hex
@@ -278,7 +298,6 @@ class Skill
     constructor: ->
         console.log("load")
 
-
     cast: ->
 
 
@@ -290,7 +309,11 @@ class SkillBarrier extends Skill
         super()
         barrier = new Barrier()
         barrier.setPosition(hex)
-
+        adJacentHexs = Hex.getAdjacent(hex)
+        for adJacentHex in adJacentHexs
+            uuid = hexToUuid.get String(hex)
+            tile = uuidToTile.get uuid
+            tile.capture @currentTeamTurn
 
 
 castSkill = (hex, skill) ->
