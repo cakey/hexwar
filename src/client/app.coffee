@@ -36,7 +36,7 @@ scene.add camera
 
 cameraDistance = 125
 
-camera.position.x = 700
+camera.position.x = 765
 camera.position.y = -4 * cameraDistance
 camera.position.z = 4 * cameraDistance
 camera.rotation.x = Math.PI/4
@@ -156,8 +156,6 @@ class Player
         @mesh.position.y = @y
         uuid = hexToUuid.get String(hex)
         tile = uuidToTile.get uuid
-        if tile?
-            tile.capture @team
 
 
     setTeam: (team) ->
@@ -237,6 +235,42 @@ class GameView
     update: ->
         for p in @players
             p.update()
+
+        # calculate implicit territory control
+        # players have 32/16/8/4/2/1 influence
+        # naive brute force approach - for each tile, lookup distance of each player
+
+        #influence to capture
+        minInfluence = 16
+
+        # required influence advantage over enemy
+        diffInfluence = 6
+
+        lastInfluence = @totalInfluence
+        @totalInfluence = [0, 0, 0]
+
+        uuidToHex.forEach (h, uuid) =>
+            influence = [0,0]
+            for p in @players
+                playerHex = [Math.round(p.hex[0]), Math.round(p.hex[1])]
+                distance = Hex.distance playerHex, h
+                influence[p.team] += Math.pow 2, (5-distance)
+
+            tile = uuidToTile.get uuid
+            if influence[0] >= (influence[1]+diffInfluence) and influence[0] >= minInfluence
+                tile.capture 0
+                @totalInfluence[0] += 1
+            else if influence[1] >= (influence[0]+diffInfluence) and influence[1] >= minInfluence
+                tile.capture 1
+                @totalInfluence[1] += 1
+            else
+                tile.capture null
+                @totalInfluence[2] += 1
+
+
+        if not _.isEqual lastInfluence, @totalInfluence
+            if renderUI?
+                renderUI(this)
 
     availableHexes: ->
         hexes = new Set()
@@ -338,8 +372,9 @@ render = ->
             else
                 availableHexes.add String(hex)
                 path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
-                for h in path
-                    outofRangeUuids.add hexToUuid.get String(h)
+                if path?
+                    for h in path
+                        outofRangeUuids.add hexToUuid.get String(h)
         break
 
     for c in hexagons.children
@@ -368,6 +403,31 @@ window.addEventListener 'click', onClick, false
 update()
 render()
 
+UI = React.createClass
+    render: ->
+        <div>
+            <PlayerUI gameView={@props.gameView}/>
+            <ScoreUI gameView={@props.gameView}/>
+        </div>
+
+ScoreUI = React.createClass
+    render: ->
+        style =
+            display: "inline-block"
+            textAlign: "center"
+            position: "absolute"
+            fontFamily: "Open Sans"
+            top: 10
+            right: 0
+            left: 0
+
+        <div style={style} className="noSelect">
+            <span style={color:Colors.purple, fontSize: 60, margin: 32}>{@props.gameView.totalInfluence[0]}</span>
+            <span style={color:Colors.baseTile, fontSize: 32, margin: 32}>{@props.gameView.totalInfluence[2]}</span>
+            <span style={color:Colors.red, fontSize: 60, margin: 32}>{@props.gameView.totalInfluence[1]}</span>
+        </div>
+
+
 PlayerUI = React.createClass
     render: ->
         style =
@@ -394,7 +454,7 @@ PlayerUI = React.createClass
 
 renderUI = (gameView) ->
     React.render(
-        <PlayerUI gameView={gameView}/>
+        <UI gameView={gameView}/>
         document.getElementById('ui_container')
     )
 
