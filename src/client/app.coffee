@@ -203,6 +203,14 @@ class GameView
         for p in @players
             p.update()
 
+    availableHexes: ->
+        hexes = new Set()
+        validHexes.forEach (h) -> hexes.add h
+        for p in @players
+            hexes.delete String(p.hex)
+        hexes.add String(@selectedPlayer.hex)
+        hexes
+
     selectHex: (selectedHex) ->
         if not @selectedPlayer?
             for player, i in @players
@@ -211,8 +219,8 @@ class GameView
                         player.setState "selected"
                         @selectedPlayer = player
         else
-            path = Hex.shortestPath @selectedPlayer.hex, selectedHex, validHexes
-            if (path.length-1) <= @movesRemaining
+            path = Hex.shortestPath @selectedPlayer.hex, selectedHex, @availableHexes()
+            if path? and (path.length-1) <= @movesRemaining
                 @selectedPlayer.setPosition selectedHex
                 @selectedPlayer.setState "none"
                 @selectedPlayer = null
@@ -285,14 +293,22 @@ render = ->
         intersectUuids.add i.object.uuid
         hex = uuidToHex.get i.object.uuid
         if gameView.selectedPlayer?
-            for h, i in Hex.shortestPath gameView.selectedPlayer.hex, hex, validHexes
-                if i < gameView.movesRemaining
-                    pathUuids.add hexToUuid.get String(h)
-                else if i is gameView.movesRemaining and not intersectUuids.has hexToUuid.get String(h)
-                    # the last tile in the range should highlight
-                    # so you know it is max distance...
-                    pathUuids.add hexToUuid.get String(h)
-                else if i > gameView.movesRemaining
+            availableHexes = gameView.availableHexes()
+            path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
+            if path?
+                for h, i in path
+                    if i < gameView.movesRemaining
+                        pathUuids.add hexToUuid.get String(h)
+                    else if i is gameView.movesRemaining and not intersectUuids.has hexToUuid.get String(h)
+                        # the last tile in the range should highlight
+                        # so you know it is max distance...
+                        pathUuids.add hexToUuid.get String(h)
+                    else if i > gameView.movesRemaining
+                        outofRangeUuids.add hexToUuid.get String(h)
+            else
+                availableHexes.add String(hex)
+                path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
+                for h in path
                     outofRangeUuids.add hexToUuid.get String(h)
         break
 
