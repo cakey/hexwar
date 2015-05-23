@@ -134,7 +134,7 @@ for hexX in [0..12]
 scene.add hexagons
 
 
-<<<<<<< HEAD
+
 class Barrier
     constructor: ()->
         @coneHeight = 80
@@ -153,8 +153,7 @@ class Barrier
         scene.add @mesh
 
 
-=======
->>>>>>> master
+
 class Player
     constructor: ->
         @coneHeight = 80
