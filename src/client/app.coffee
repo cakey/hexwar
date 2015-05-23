@@ -197,11 +197,13 @@ class Player
 class GameView
     constructor: ->
         @movesPerTurn = 4
+        @actionPointsPerTurn = 2
         @players = []
         @selectedPlayer = null
         @currentTeamTurn = 0
         @turn = 1
         @movesRemaining = @movesPerTurn
+        @actionPointsRemaining = @actionPointsPerTurn
 
     nextTurn: ->
         if @currentTeamTurn is 0
@@ -210,6 +212,7 @@ class GameView
             @currentTeamTurn = 0
         @turn++
         @movesRemaining = @movesPerTurn
+        @actionPointsRemaining = @actionPointsPerTurn
         renderUI(this)
 
     getTeamName: ->
@@ -276,14 +279,15 @@ mouseVector.y = 0
 
 
 class Skill
+    @cost = 0
     constructor: ->
         console.log("load")
-
 
     cast: ->
 
 
 class SkillBarrier extends Skill
+    @cost = 1
     constructor: ->
         super()
 
@@ -315,18 +319,27 @@ onMouseMove = (e) ->
     mouseVector.y = 1 - 2 * ( e.clientY / window.innerHeight )
 
 
+canCast = (skill) ->
+    if gameView.actionPointsRemaining >= SkillBarrier.cost
+        return true
+    else
+        return false
+
 onKeyPress = (e) ->
     console.log("KEY: ", e.keyCode)
 
-    if e.keyCode == 98
-        raycaster.setFromCamera( mouseVector, camera )
+    if e.keyCode == 98 #B
+        if canCast(SkillBarrier)
+            raycaster.setFromCamera( mouseVector, camera )
 
-        intersects = raycaster.intersectObjects(hexagons.children)
-        if intersects.length > 0
-            hexUuid = intersects[0].object.uuid
-            clickedHex = uuidToHex.get hexUuid
-            barrierSkill = new SkillBarrier()
-            castSkill(clickedHex, barrierSkill)
+            intersects = raycaster.intersectObjects(hexagons.children)
+            if intersects.length > 0
+                hexUuid = intersects[0].object.uuid
+                clickedHex = uuidToHex.get hexUuid
+                barrierSkill = new SkillBarrier()
+                castSkill(clickedHex, barrierSkill)
+                gameView.actionPointsRemaining -= SkillBarrier.cost
+                renderUI(gameView)
 
 update = ->
     gameView.update()
@@ -386,7 +399,7 @@ PlayerUI = React.createClass
     render: ->
         style =
             width: 220
-            height: 140
+            height: 160
             backgroundColor: [Colors.purple, Colors.red][@props.gameView.currentTeamTurn]
             borderTopRightRadius: 200
             boxShadow: "4px -4px 12px 12px rgba(0, 0, 0, 0.2)"
@@ -401,6 +414,7 @@ PlayerUI = React.createClass
             { @props.gameView.getTeamName() } turn<br />
             Turn {@props.gameView.turn} / 60 <br />
             {("O" for x in [0...@props.gameView.movesRemaining]).join(" ")} <br />
+            {("X" for x in [0...@props.gameView.actionPointsRemaining]).join(" ")} <br />
             84 s  <br />
             19 tiles
         </div>
