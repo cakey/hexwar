@@ -73,8 +73,14 @@ hexagons = new THREE.Object3D();
 hexTo3d = ([hexX, hexY]) ->
     border = 12
     _edge = halfEdge*2
+
+    # fractional with offset coordinates
+    extra = hexX%2
+    percentOffset = if extra < 1 then extra else 2 - extra
+
+
     x: (((_edge)*3/2)+(border*(2/3))) * hexX
-    y: ((_edge*Math.sqrt(3)+border) * (hexY + (if hexX%2 isnt 0 then 0.5 else 0)))
+    y: ((_edge*Math.sqrt(3)+border) * (hexY + (percentOffset*0.5)))
 
 uuidToHex = new Map()
 hexToUuid = new Map()
@@ -141,12 +147,18 @@ class Player
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
         @setPosition [0,0]
+        @path = []
 
     setPosition: (hex) ->
         @hex = hex
         {@x, @y} = hexTo3d @hex
         @mesh.position.x = @x
         @mesh.position.y = @y
+        uuid = hexToUuid.get String(hex)
+        tile = uuidToTile.get uuid
+        if tile?
+            tile.capture @team
+
 
     setTeam: (team) ->
         @team = team
@@ -166,9 +178,32 @@ class Player
             when "none"
                 @mesh.material = @material
 
+    moveOnPath: (_basePath) ->
+        basePath = _.clone _basePath
+        path = []
+        start = basePath.shift()
+        path.push start
+        while end = basePath.shift()
+            max = 15
+            for i in [1..max]
+                newX = start[0]*(1-(i/max)) + end[0]*(i/max)
+                newY = start[1]*(1-(i/max)) + end[1]*(i/max)
+                iHex = [newX, newY]
+                path.push iHex
+            path.push end
+            path.push end
+            start = end
+        @path = path
+
+
+
     update: ->
         if @state is "selected"
             @mesh.rotation.y += Math.PI/60
+
+        if @path.length > 0
+            newHex = @path.shift()
+            @setPosition newHex
 
 
 class GameView
@@ -194,14 +229,22 @@ class GameView
 
     newPlayer: (hex, team) ->
         p = new Player()
-        p.setPosition hex
         p.setTeam team
+        p.setPosition hex
         @players.push p
         scene.add p.mesh
 
     update: ->
         for p in @players
             p.update()
+
+    availableHexes: ->
+        hexes = new Set()
+        validHexes.forEach (h) -> hexes.add h
+        for p in @players
+            hexes.delete String(p.hex)
+        hexes.add String(@selectedPlayer.hex)
+        hexes
 
     selectHex: (selectedHex) ->
         if not @selectedPlayer?
@@ -211,18 +254,13 @@ class GameView
                         player.setState "selected"
                         @selectedPlayer = player
         else
-            path = Hex.shortestPath @selectedPlayer.hex, selectedHex, validHexes
-            if (path.length-1) <= @movesRemaining
-                @selectedPlayer.setPosition selectedHex
+            path = Hex.shortestPath @selectedPlayer.hex, selectedHex, @availableHexes()
+            if path? and (path.length-1) <= @movesRemaining
+                @selectedPlayer.moveOnPath path
                 @selectedPlayer.setState "none"
                 @selectedPlayer = null
                 @movesRemaining -= (path.length - 1)
                 renderUI(this)
-
-                for hex in path
-                    uuid = hexToUuid.get String(hex)
-                    tile = uuidToTile.get uuid
-                    tile.capture @currentTeamTurn
 
                 if @movesRemaining is 0
                     @nextTurn()
@@ -285,14 +323,22 @@ render = ->
         intersectUuids.add i.object.uuid
         hex = uuidToHex.get i.object.uuid
         if gameView.selectedPlayer?
-            for h, i in Hex.shortestPath gameView.selectedPlayer.hex, hex, validHexes
-                if i < gameView.movesRemaining
-                    pathUuids.add hexToUuid.get String(h)
-                else if i is gameView.movesRemaining and not intersectUuids.has hexToUuid.get String(h)
-                    # the last tile in the range should highlight
-                    # so you know it is max distance...
-                    pathUuids.add hexToUuid.get String(h)
-                else if i > gameView.movesRemaining
+            availableHexes = gameView.availableHexes()
+            path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
+            if path?
+                for h, i in path
+                    if i < gameView.movesRemaining
+                        pathUuids.add hexToUuid.get String(h)
+                    else if i is gameView.movesRemaining and not intersectUuids.has hexToUuid.get String(h)
+                        # the last tile in the range should highlight
+                        # so you know it is max distance...
+                        pathUuids.add hexToUuid.get String(h)
+                    else if i > gameView.movesRemaining
+                        outofRangeUuids.add hexToUuid.get String(h)
+            else
+                availableHexes.add String(hex)
+                path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
+                for h in path
                     outofRangeUuids.add hexToUuid.get String(h)
         break
 
