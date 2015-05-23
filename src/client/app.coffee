@@ -156,8 +156,6 @@ class Player
         @mesh.position.y = @y
         uuid = hexToUuid.get String(hex)
         tile = uuidToTile.get uuid
-        if tile?
-            tile.capture @team
 
 
     setTeam: (team) ->
@@ -237,6 +235,29 @@ class GameView
     update: ->
         for p in @players
             p.update()
+
+        # calculate implicit territory control
+        # players have 32/16/8/4/2/1 influence
+        # tiles need 10 influence to be captured
+        # naive brute force approach - for each tile, lookup distance of each player
+
+        minInfluence = 16
+        diffInfluence = 6
+
+        uuidToHex.forEach (h, uuid) =>
+            influence = [0,0]
+            for p in @players
+                playerHex = [Math.round(p.hex[0]), Math.round(p.hex[1])]
+                distance = Hex.distance playerHex, h
+                influence[p.team] += Math.pow 2, (5-distance)
+
+            tile = uuidToTile.get uuid
+            if influence[0] >= (influence[1]+diffInfluence) and influence[0] >= minInfluence
+                tile.capture 0
+            else if influence[1] >= (influence[0]+diffInfluence) and influence[1] >= minInfluence
+                tile.capture 1
+            else
+                tile.capture null
 
     availableHexes: ->
         hexes = new Set()
@@ -338,8 +359,9 @@ render = ->
             else
                 availableHexes.add String(hex)
                 path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
-                for h in path
-                    outofRangeUuids.add hexToUuid.get String(h)
+                if path?
+                    for h in path
+                        outofRangeUuids.add hexToUuid.get String(h)
         break
 
     for c in hexagons.children

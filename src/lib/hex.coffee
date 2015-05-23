@@ -28,4 +28,22 @@ getAdjacent = ([x, y], validHexes) ->
     )
     (r for r in returnees when (not validHexes? or validHexes.has String(r)))
 
-module.exports = {shortestPath, getAdjacent}
+cubeDistance = (a, b) ->
+    (Math.abs(a[0] - b[0]) + Math.abs(a[1] - b[1]) + Math.abs(a[2] - b[2])) / 2
+
+toCube = ([col,row]) ->
+    x = col
+    z = row - (col - (col&1)) / 2
+    y = -x-z
+    return [x,y,z]
+
+distance = (hex1, hex2) ->
+    cube1 = toCube hex1
+    cube2 = toCube hex2
+    cubeDistance cube1, cube2
+
+module.exports = {
+    shortestPath
+    getAdjacent
+    distance
+}
