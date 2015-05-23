@@ -45,3 +45,12 @@ describe "Hex Algorithms", ->
             ])
             path = Hex.shortestPath [0,0], [2,0], validHexes
             expect(path).to.deep.equal [[0,0],[0,1],[0,2],[1,2],[2,2],[2,1],[2,0]]
+
+
+    describe "distance", ->
+        it "should work for identity", ->
+            d = Hex.distance [4,1], [4,1]
+            expect(d).to.equal 0
+        it "should work for distance hexes", ->
+            d = Hex.distance [4,1], [7,4]
+            expect(d).to.equal 5
