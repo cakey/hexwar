@@ -84,11 +84,6 @@ hexTo3d = ([hexX, hexY]) ->
     x: (((_edge)*3/2)+(border*(2/3))) * hexX
     y: ((_edge*Math.sqrt(3)+border) * (hexY + (percentOffset*0.5)))
 
-uuidToHex = new Map()
-hexToUuid = new Map()
-validHexes = new Set()
-uuidToTile = new Map()
-
 
 class Tile
     constructor: (x, y) ->
@@ -131,6 +126,11 @@ class Tile
 
 class TileManager
     constructor: (maxI,maxJ) ->
+
+        @_uuidToHex = new Map()
+        @_hexToUuid = new Map()
+        @_uuidToTile = new Map()
+
         # add base tiles to render
         for hexX in [0...maxI]
             height = if hexX%2 is 0 then maxJ else maxJ-1
@@ -139,30 +139,42 @@ class TileManager
                 tile = new Tile x, y
 
                 hexagons.add tile.mesh
-                uuidToHex.set tile.uuid, [hexX, hexY]
-                uuidToTile.set tile.uuid, tile
-                hexToUuid.set String([hexX, hexY]), tile.uuid
-                validHexes.add String([hexX, hexY])
+                @_uuidToHex.set tile.uuid, [hexX, hexY]
+                @_uuidToTile.set tile.uuid, tile
+                @_hexToUuid.set String([hexX, hexY]), tile.uuid
         scene.add hexagons
 
     intersectedHex: (raycaster) ->
         intersects = raycaster.intersectObjects(hexagons.children)
         if intersects.length > 0
             hexUuid = intersects[0].object.uuid
-            intersectedHex = uuidToHex.get hexUuid
+            intersectedHex = @_uuidToHex.get hexUuid
         else
             null
 
     setStates: (hexStates) ->
         for c in hexagons.children
-            tile = uuidToTile.get c.uuid
+            tile = @_uuidToTile.get c.uuid
             tile.clearState()
         for state, hexes of hexStates
             for h in hexes
-                uuid = hexToUuid.get String(h)
-                tile = uuidToTile.get uuid
+                uuid = @_hexToUuid.get String(h)
+                tile = @_uuidToTile.get uuid
                 tile.setState state
         return
+
+    getHexes: ->
+        hexes = []
+        @_uuidToHex.forEach (h, uuid) -> hexes.push h
+        hexes
+
+    _fromHex: (hex) ->
+        uuid = @_hexToUuid.get String(hex)
+        @_uuidToTile.get uuid
+
+    capture: (hex, team) ->
+        tile = @_fromHex hex
+        tile.capture team
 
 tileManager = new TileManager 13,7
 
@@ -275,22 +287,21 @@ class GameView
         lastInfluence = @totalInfluence
         @totalInfluence = [0, 0, 0]
 
-        uuidToHex.forEach (h, uuid) =>
+        for h in tileManager.getHexes()
             influence = [0,0]
             for p in @players
                 playerHex = [Math.round(p.hex[0]), Math.round(p.hex[1])]
                 distance = Hex.distance playerHex, h
                 influence[p.team] += Math.pow 2, (5-distance)
 
-            tile = uuidToTile.get uuid
             if influence[0] >= (influence[1]+diffInfluence) and influence[0] >= minInfluence
-                tile.capture 0
+                tileManager.capture h, 0
                 @totalInfluence[0] += 1
             else if influence[1] >= (influence[0]+diffInfluence) and influence[1] >= minInfluence
-                tile.capture 1
+                tileManager.capture h, 1
                 @totalInfluence[1] += 1
             else
-                tile.capture null
+                tileManager.capture h, null
                 @totalInfluence[2] += 1
 
 
@@ -300,7 +311,8 @@ class GameView
 
     availableHexes: ->
         hexes = new Set()
-        validHexes.forEach (h) -> hexes.add h
+        for h in tileManager.getHexes()
+            hexes.add String(h)
         for p in @players
             hexes.delete String(p.hex)
         hexes.add String(@selectedPlayer.hex)
