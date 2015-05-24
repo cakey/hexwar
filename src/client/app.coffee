@@ -101,6 +101,8 @@ class Tile
         @team = null
 
     setState: (newState) ->
+        if newState is @state
+            return
         switch newState
             when "outofrange"
                 @material.color.set Colors.outofrangeTile
@@ -112,6 +114,9 @@ class Tile
         @state = newState
 
     clearState: ->
+        if @state is "none" and not @_captured
+            return
+
         @state = "none"
         if not @team?
             @material.color.set Colors.baseTile
@@ -119,8 +124,10 @@ class Tile
             @material.color.set Colors.purple
         else if @team is 1
             @material.color.set Colors.red
+        @_captured = false
 
     capture: (@team) ->
+        @_captured = true
 
 class TileManager
     constructor: (maxI,maxJ) ->
@@ -138,14 +145,24 @@ class TileManager
                 validHexes.add String([hexX, hexY])
         scene.add hexagons
 
-    clickedHex: (raycaster) ->
+    intersectedHex: (raycaster) ->
         intersects = raycaster.intersectObjects(hexagons.children)
         if intersects.length > 0
             hexUuid = intersects[0].object.uuid
-            clickedHex = uuidToHex.get hexUuid
+            intersectedHex = uuidToHex.get hexUuid
         else
             null
 
+    setStates: (hexStates) ->
+        for c in hexagons.children
+            tile = uuidToTile.get c.uuid
+            tile.clearState()
+        for state, hexes of hexStates
+            for h in hexes
+                uuid = hexToUuid.get String(h)
+                tile = uuidToTile.get uuid
+                tile.setState state
+        return
 
 tileManager = new TileManager 13,7
 
@@ -336,7 +353,7 @@ mouseVector.y = 0
 onClick = (e) ->
     raycaster.setFromCamera( mouseVector, camera )
 
-    clickedHex = tileManager.clickedHex raycaster
+    clickedHex = tileManager.intersectedHex raycaster
     if clickedHex?
         gameView.selectHex clickedHex
     else
@@ -355,45 +372,45 @@ update = ->
 render = ->
     raycaster.setFromCamera( mouseVector, camera )
 
-    intersects = raycaster.intersectObjects(hexagons.children)
-    intersectUuids = new Set()
-    pathUuids = new Set()
-    outofRangeUuids = new Set()
+    hoveredHex = tileManager.intersectedHex raycaster
 
-    for i in intersects
-        intersectUuids.add i.object.uuid
-        hex = uuidToHex.get i.object.uuid
+    tileStates =
+        onPath: []
+        outofrange: []
+        highlight: []
+
+    if hoveredHex?
         if gameView.selectedPlayer?
             availableHexes = gameView.availableHexes()
-            path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
+            path = Hex.shortestPath gameView.selectedPlayer.hex, hoveredHex, availableHexes
             if path?
                 for h, i in path
                     if i < gameView.movesRemaining
-                        pathUuids.add hexToUuid.get String(h)
-                    else if i is gameView.movesRemaining and not intersectUuids.has hexToUuid.get String(h)
+                        tileStates.onPath.push h
+                    else if i is gameView.movesRemaining
                         # the last tile in the range should highlight
                         # so you know it is max distance...
-                        pathUuids.add hexToUuid.get String(h)
+                        if _.isEqual h, hoveredHex
+                            tileStates.highlight.push h
+                        else
+                            tileStates.onPath.push h
                     else if i > gameView.movesRemaining
-                        outofRangeUuids.add hexToUuid.get String(h)
+                        tileStates.outofrange.push h
             else
-                availableHexes.add String(hex)
-                path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
+                # might be hovering over a player
+                # want invalid path to show rather than nothing
+                availableHexes.add String(hoveredHex)
+                path = Hex.shortestPath gameView.selectedPlayer.hex, hoveredHex, availableHexes
                 if path?
                     for h in path
-                        outofRangeUuids.add hexToUuid.get String(h)
-        break
+                        tileStates.outofrange.push h
 
-    for c in hexagons.children
-        tile = uuidToTile.get c.uuid
-        if outofRangeUuids.has c.uuid
-            tile.setState "outofrange"
-        else if pathUuids.has c.uuid
-            tile.setState "onPath"
-        else if intersectUuids.has c.uuid
-            tile.setState "highlight"
         else
-            tile.clearState()
+            tileStates.highlight.push hoveredHex
+
+
+    # call this as at least want to reset states from last render
+    tileManager.setStates tileStates
 
     renderer.render(scene, camera)
     window.requestAnimationFrame render
