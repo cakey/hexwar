@@ -53,20 +53,22 @@ scene.add(pointLight)
 
 TEAM_NAMES = ["Purple", "Red"]
 
+makeHexGeometry = (halfEdge, height) ->
+    stalk = halfEdge*Math.tan(Math.PI/3)
+    BOTTOM_LEFT = new THREE.Vector2( -halfEdge, -stalk )
+    BOTTOM_RIGHT = new THREE.Vector2( halfEdge, -stalk )
+    TOP_LEFT = new THREE.Vector2( -halfEdge, stalk )
+    TOP_RIGHT = new THREE.Vector2( halfEdge, stalk )
+    LEFT = new THREE.Vector2( -halfEdge*2, 0 )
+    RIGHT = new THREE.Vector2( +halfEdge*2, 0 )
+
+    tileHeight = height#3
+
+    new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, TOP_LEFT, LEFT ], tileHeight )
 
 halfEdge = 40
-stalk = halfEdge*Math.tan(Math.PI/3)
-
-BOTTOM_LEFT = new THREE.Vector2( -halfEdge, -stalk )
-BOTTOM_RIGHT = new THREE.Vector2( halfEdge, -stalk )
-TOP_LEFT = new THREE.Vector2( -halfEdge, stalk )
-TOP_RIGHT = new THREE.Vector2( halfEdge, stalk )
-LEFT = new THREE.Vector2( -halfEdge*2, 0 )
-RIGHT = new THREE.Vector2( +halfEdge*2, 0 )
-
 tileHeight = 3
-
-hexGeometry = new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, TOP_LEFT, LEFT ], tileHeight )
+hexGeometry = makeHexGeometry(halfEdge, tileHeight)
 
 hexagons = new THREE.Object3D();
 
@@ -88,7 +90,6 @@ validHexes = new Set()
 uuidToTile = new Map()
 
 
-# to do: tile manager class
 class Tile
     constructor: (x, y) ->
         @material = new THREE.MeshBasicMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
@@ -121,21 +122,32 @@ class Tile
 
     capture: (@team) ->
 
+class TileManager
+    constructor: (maxI,maxJ) ->
+        # add base tiles to render
+        for hexX in [0...maxI]
+            height = if hexX%2 is 0 then maxJ else maxJ-1
+            for hexY in [0...height]
+                {x, y} = hexTo3d [hexX, hexY]
+                tile = new Tile x, y
 
-# add base tiles to render
-for hexX in [0..12]
-    height = if hexX%2 is 0 then 7 else 6
-    for hexY in [0...height]
-        {x, y} = hexTo3d [hexX, hexY]
-        tile = new Tile x, y
+                hexagons.add tile.mesh
+                uuidToHex.set tile.uuid, [hexX, hexY]
+                uuidToTile.set tile.uuid, tile
+                hexToUuid.set String([hexX, hexY]), tile.uuid
+                validHexes.add String([hexX, hexY])
+        scene.add hexagons
 
-        hexagons.add tile.mesh
-        uuidToHex.set tile.uuid, [hexX, hexY]
-        uuidToTile.set tile.uuid, tile
-        hexToUuid.set String([hexX, hexY]), tile.uuid
-        validHexes.add String([hexX, hexY])
+    clickedHex: (raycaster) ->
+        intersects = raycaster.intersectObjects(hexagons.children)
+        if intersects.length > 0
+            hexUuid = intersects[0].object.uuid
+            clickedHex = uuidToHex.get hexUuid
+        else
+            null
 
-scene.add hexagons
+
+tileManager = new TileManager 13,7
 
 
 class Player
@@ -154,9 +166,6 @@ class Player
         {@x, @y} = hexTo3d @hex
         @mesh.position.x = @x
         @mesh.position.y = @y
-        uuid = hexToUuid.get String(hex)
-        tile = uuidToTile.get uuid
-
 
     setTeam: (team) ->
         @team = team
@@ -327,10 +336,8 @@ mouseVector.y = 0
 onClick = (e) ->
     raycaster.setFromCamera( mouseVector, camera )
 
-    intersects = raycaster.intersectObjects(hexagons.children)
-    if intersects.length > 0
-        hexUuid = intersects[0].object.uuid
-        clickedHex = uuidToHex.get hexUuid
+    clickedHex = tileManager.clickedHex raycaster
+    if clickedHex?
         gameView.selectHex clickedHex
     else
         gameView.deselect()
