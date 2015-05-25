@@ -53,20 +53,22 @@ scene.add(pointLight)
 
 TEAM_NAMES = ["Purple", "Red"]
 
+makeHexGeometry = (halfEdge, height) ->
+    stalk = halfEdge*Math.tan(Math.PI/3)
+    BOTTOM_LEFT = new THREE.Vector2( -halfEdge, -stalk )
+    BOTTOM_RIGHT = new THREE.Vector2( halfEdge, -stalk )
+    TOP_LEFT = new THREE.Vector2( -halfEdge, stalk )
+    TOP_RIGHT = new THREE.Vector2( halfEdge, stalk )
+    LEFT = new THREE.Vector2( -halfEdge*2, 0 )
+    RIGHT = new THREE.Vector2( +halfEdge*2, 0 )
+
+    tileHeight = height#3
+
+    new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, TOP_LEFT, LEFT ], tileHeight )
 
 halfEdge = 40
-stalk = halfEdge*Math.tan(Math.PI/3)
-
-BOTTOM_LEFT = new THREE.Vector2( -halfEdge, -stalk )
-BOTTOM_RIGHT = new THREE.Vector2( halfEdge, -stalk )
-TOP_LEFT = new THREE.Vector2( -halfEdge, stalk )
-TOP_RIGHT = new THREE.Vector2( halfEdge, stalk )
-LEFT = new THREE.Vector2( -halfEdge*2, 0 )
-RIGHT = new THREE.Vector2( +halfEdge*2, 0 )
-
 tileHeight = 3
-
-hexGeometry = new PrismGeometry( [ BOTTOM_LEFT, BOTTOM_RIGHT, RIGHT, TOP_RIGHT, TOP_LEFT, LEFT ], tileHeight )
+hexGeometry = makeHexGeometry(halfEdge, tileHeight)
 
 hexagons = new THREE.Object3D();
 
@@ -82,13 +84,7 @@ hexTo3d = ([hexX, hexY]) ->
     x: (((_edge)*3/2)+(border*(2/3))) * hexX
     y: ((_edge*Math.sqrt(3)+border) * (hexY + (percentOffset*0.5)))
 
-uuidToHex = new Map()
-hexToUuid = new Map()
-validHexes = new Set()
-uuidToTile = new Map()
 
-
-# to do: tile manager class
 class Tile
     constructor: (x, y) ->
         @material = new THREE.MeshBasicMaterial( { color: 0x00b2fc, specular: 0x00ffff, shininess: 10 } )
@@ -100,6 +96,8 @@ class Tile
         @team = null
 
     setState: (newState) ->
+        if newState is @state
+            return
         switch newState
             when "outofrange"
                 @material.color.set Colors.outofrangeTile
@@ -111,6 +109,9 @@ class Tile
         @state = newState
 
     clearState: ->
+        if @state is "none" and not @_captured
+            return
+
         @state = "none"
         if not @team?
             @material.color.set Colors.baseTile
@@ -118,24 +119,64 @@ class Tile
             @material.color.set Colors.purple
         else if @team is 1
             @material.color.set Colors.red
+        @_captured = false
 
     capture: (@team) ->
+        @_captured = true
 
+class TileManager
+    constructor: (maxI,maxJ) ->
 
-# add base tiles to render
-for hexX in [0..12]
-    height = if hexX%2 is 0 then 7 else 6
-    for hexY in [0...height]
-        {x, y} = hexTo3d [hexX, hexY]
-        tile = new Tile x, y
+        @_uuidToHex = new Map()
+        @_hexToUuid = new Map()
+        @_uuidToTile = new Map()
 
-        hexagons.add tile.mesh
-        uuidToHex.set tile.uuid, [hexX, hexY]
-        uuidToTile.set tile.uuid, tile
-        hexToUuid.set String([hexX, hexY]), tile.uuid
-        validHexes.add String([hexX, hexY])
+        # add base tiles to render
+        for hexX in [0...maxI]
+            height = if hexX%2 is 0 then maxJ else maxJ-1
+            for hexY in [0...height]
+                {x, y} = hexTo3d [hexX, hexY]
+                tile = new Tile x, y
 
-scene.add hexagons
+                hexagons.add tile.mesh
+                @_uuidToHex.set tile.uuid, [hexX, hexY]
+                @_uuidToTile.set tile.uuid, tile
+                @_hexToUuid.set String([hexX, hexY]), tile.uuid
+        scene.add hexagons
+
+    intersectedHex: (raycaster) ->
+        intersects = raycaster.intersectObjects(hexagons.children)
+        if intersects.length > 0
+            hexUuid = intersects[0].object.uuid
+            intersectedHex = @_uuidToHex.get hexUuid
+        else
+            null
+
+    setStates: (hexStates) ->
+        for c in hexagons.children
+            tile = @_uuidToTile.get c.uuid
+            tile.clearState()
+        for state, hexes of hexStates
+            for h in hexes
+                uuid = @_hexToUuid.get String(h)
+                tile = @_uuidToTile.get uuid
+                tile.setState state
+        return
+
+    getHexes: ->
+        hexes = []
+        @_uuidToHex.forEach (h, uuid) -> hexes.push h
+        hexes
+
+    _fromHex: (hex) ->
+        uuid = @_hexToUuid.get String(hex)
+        @_uuidToTile.get uuid
+
+    capture: (hex, team) ->
+        tile = @_fromHex hex
+        tile.capture team
+
+tileManager = new TileManager 13,7
 
 
 class Player
@@ -154,9 +195,6 @@ class Player
         {@x, @y} = hexTo3d @hex
         @mesh.position.x = @x
         @mesh.position.y = @y
-        uuid = hexToUuid.get String(hex)
-        tile = uuidToTile.get uuid
-
 
     setTeam: (team) ->
         @team = team
@@ -249,22 +287,21 @@ class GameView
         lastInfluence = @totalInfluence
         @totalInfluence = [0, 0, 0]
 
-        uuidToHex.forEach (h, uuid) =>
+        for h in tileManager.getHexes()
             influence = [0,0]
             for p in @players
                 playerHex = [Math.round(p.hex[0]), Math.round(p.hex[1])]
                 distance = Hex.distance playerHex, h
                 influence[p.team] += Math.pow 2, (5-distance)
 
-            tile = uuidToTile.get uuid
             if influence[0] >= (influence[1]+diffInfluence) and influence[0] >= minInfluence
-                tile.capture 0
+                tileManager.capture h, 0
                 @totalInfluence[0] += 1
             else if influence[1] >= (influence[0]+diffInfluence) and influence[1] >= minInfluence
-                tile.capture 1
+                tileManager.capture h, 1
                 @totalInfluence[1] += 1
             else
-                tile.capture null
+                tileManager.capture h, null
                 @totalInfluence[2] += 1
 
 
@@ -274,7 +311,8 @@ class GameView
 
     availableHexes: ->
         hexes = new Set()
-        validHexes.forEach (h) -> hexes.add h
+        for h in tileManager.getHexes()
+            hexes.add String(h)
         for p in @players
             hexes.delete String(p.hex)
         hexes.add String(@selectedPlayer.hex)
@@ -327,10 +365,8 @@ mouseVector.y = 0
 onClick = (e) ->
     raycaster.setFromCamera( mouseVector, camera )
 
-    intersects = raycaster.intersectObjects(hexagons.children)
-    if intersects.length > 0
-        hexUuid = intersects[0].object.uuid
-        clickedHex = uuidToHex.get hexUuid
+    clickedHex = tileManager.intersectedHex raycaster
+    if clickedHex?
         gameView.selectHex clickedHex
     else
         gameView.deselect()
@@ -348,45 +384,45 @@ update = ->
 render = ->
     raycaster.setFromCamera( mouseVector, camera )
 
-    intersects = raycaster.intersectObjects(hexagons.children)
-    intersectUuids = new Set()
-    pathUuids = new Set()
-    outofRangeUuids = new Set()
+    hoveredHex = tileManager.intersectedHex raycaster
 
-    for i in intersects
-        intersectUuids.add i.object.uuid
-        hex = uuidToHex.get i.object.uuid
+    tileStates =
+        onPath: []
+        outofrange: []
+        highlight: []
+
+    if hoveredHex?
         if gameView.selectedPlayer?
             availableHexes = gameView.availableHexes()
-            path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
+            path = Hex.shortestPath gameView.selectedPlayer.hex, hoveredHex, availableHexes
             if path?
                 for h, i in path
                     if i < gameView.movesRemaining
-                        pathUuids.add hexToUuid.get String(h)
-                    else if i is gameView.movesRemaining and not intersectUuids.has hexToUuid.get String(h)
+                        tileStates.onPath.push h
+                    else if i is gameView.movesRemaining
                         # the last tile in the range should highlight
                         # so you know it is max distance...
-                        pathUuids.add hexToUuid.get String(h)
+                        if _.isEqual h, hoveredHex
+                            tileStates.highlight.push h
+                        else
+                            tileStates.onPath.push h
                     else if i > gameView.movesRemaining
-                        outofRangeUuids.add hexToUuid.get String(h)
+                        tileStates.outofrange.push h
             else
-                availableHexes.add String(hex)
-                path = Hex.shortestPath gameView.selectedPlayer.hex, hex, availableHexes
+                # might be hovering over a player
+                # want invalid path to show rather than nothing
+                availableHexes.add String(hoveredHex)
+                path = Hex.shortestPath gameView.selectedPlayer.hex, hoveredHex, availableHexes
                 if path?
                     for h in path
-                        outofRangeUuids.add hexToUuid.get String(h)
-        break
+                        tileStates.outofrange.push h
 
-    for c in hexagons.children
-        tile = uuidToTile.get c.uuid
-        if outofRangeUuids.has c.uuid
-            tile.setState "outofrange"
-        else if pathUuids.has c.uuid
-            tile.setState "onPath"
-        else if intersectUuids.has c.uuid
-            tile.setState "highlight"
         else
-            tile.clearState()
+            tileStates.highlight.push hoveredHex
+
+
+    # call this as at least want to reset states from last render
+    tileManager.setStates tileStates
 
     renderer.render(scene, camera)
     window.requestAnimationFrame render
