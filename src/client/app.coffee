@@ -23,7 +23,7 @@ HEIGHT = window.innerHeight
 VIEW_ANGLE = 70
 ASPECT = WIDTH/HEIGHT
 NEAR = 0.1
-FAR = 10000
+FAR = 30000
 
 
 renderer = new THREE.WebGLRenderer({ antialias: true })
@@ -432,9 +432,16 @@ onResize = ->
     camera.aspect = window.innerWidth / window.innerHeight
     camera.updateProjectionMatrix()
 
+onWheel = (e) ->
+    console.log e
+    cameraDistance *= if e.deltaY < 0 then 1.05 else 0.95
+    camera.position.y = -4 * cameraDistance
+    camera.position.z = 4 * cameraDistance
+
 window.addEventListener 'resize', onResize, false
 window.addEventListener 'mousemove', onMouseMove, false
 window.addEventListener 'click', onClick, false
+window.addEventListener 'wheel', onWheel, false
 
 update()
 render()
