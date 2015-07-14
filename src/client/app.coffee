@@ -3,6 +3,7 @@ React = require 'React'
 
 PrismGeometry = require './PrismGeometry'
 Hex = require '../lib/Hex'
+Cards = require '../lib/Cards'
 
 Colors =
     purple: "#9b59b6"
@@ -15,6 +16,7 @@ Colors =
     highlightTile: "#f39c12"
     pathTile: "#2ecc71"
     outofrangeTile: "grey"
+    background: "#333333"
 
 
 WIDTH = window.innerWidth
@@ -34,12 +36,19 @@ scene = new THREE.Scene()
 
 scene.add camera
 
-cameraDistance = 125
+cameraDistance = 85
 
-camera.position.x = 765
-camera.position.y = -4 * cameraDistance
-camera.position.z = 4 * cameraDistance
-camera.rotation.x = Math.PI/4
+getCameraXYZ = (d) ->
+    x: 365
+    y: 400 + (-8 * cameraDistance)
+    z: 50 + (7 * cameraDistance)
+
+XYZ = getCameraXYZ cameraDistance
+camera.position.x = XYZ.x
+camera.position.y = XYZ.y
+camera.position.z = XYZ.z
+
+camera.rotation.x = Math.PI / 5
 camera.rotation.y = 0
 camera.rotation.z = 0
 
@@ -132,9 +141,10 @@ class TileManager
         @_uuidToTile = new Map()
 
         # add base tiles to render
-        for hexX in [0...maxI]
-            height = if hexX%2 is 0 then maxJ else maxJ-1
-            for hexY in [0...height]
+        for hexX in [0...7]
+            height = [4,5,6,7,6,5,4][hexX]#if hexX%2 is 0 then maxJ else maxJ-1
+            offset = [2,1,1,0,1,1,2][hexX]
+            for hexY in [offset...height+offset]
                 {x, y} = hexTo3d [hexX, hexY]
                 tile = new Tile x, y
 
@@ -176,7 +186,35 @@ class TileManager
         tile = @_fromHex hex
         tile.capture team
 
+    getTeam: (hex) ->
+        tile = @_fromHex hex
+        tile.team
+
 tileManager = new TileManager 13,7
+
+
+class Tower
+    constructor: ->
+        @coneHeight = 80
+        @geometry = new THREE.CylinderGeometry(10, 10, @coneHeight, 4)
+        @material = new THREE.MeshBasicMaterial( { color: Colors.white, wireframe: true } )
+        @mesh = new THREE.Mesh( @geometry, @material )
+        @mesh.rotation.x = Math.PI/2
+        @mesh.position.z = tileHeight + @coneHeight/2
+        @setPosition [0,0]
+        @setVisible false
+
+    setPosition: (hex) ->
+        @hex = hex
+        {@x, @y} = hexTo3d @hex
+        @mesh.position.x = @x
+        @mesh.position.y = @y
+
+    setVisible: (visible) ->
+        @mesh.visible = visible
+
+tower = new Tower()
+scene.add tower.mesh
 
 
 class Player
@@ -244,12 +282,22 @@ class Player
 
 class GameView
     constructor: ->
-        @movesPerTurn = 4
+        @movesPerTurn = 2
+        @actionsPerTurn = 1
         @players = []
         @selectedPlayer = null
         @currentTeamTurn = 0
         @turn = 1
         @movesRemaining = @movesPerTurn
+        @actionsRemaining = @actionsPerTurn
+        @casting = false
+        @teamCards = [
+            ["Influence","Influence","Influence"],
+            ["Influence","Influence","Influence"]
+        ]
+        @activeCard = null
+
+
 
     nextTurn: ->
         if @currentTeamTurn is 0
@@ -258,6 +306,15 @@ class GameView
             @currentTeamTurn = 0
         @turn++
         @movesRemaining = @movesPerTurn
+        @actionsRemaining = @actionsPerTurn
+        @activeCard = null
+        renderUI(this)
+
+    getActiveCardID: ->
+        @teamCards[@currentTeamTurn][@activeCard]
+
+    setActiveCard: (cardID) ->
+        @activeCard = cardID
         renderUI(this)
 
     getTeamName: ->
@@ -270,40 +327,53 @@ class GameView
         @players.push p
         scene.add p.mesh
 
+
+
     update: ->
         for p in @players
             p.update()
 
-        # calculate implicit territory control
-        # players have 32/16/8/4/2/1 influence
-        # naive brute force approach - for each tile, lookup distance of each player
-
-        #influence to capture
-        minInfluence = 16
-
-        # required influence advantage over enemy
-        diffInfluence = 6
-
         lastInfluence = @totalInfluence
         @totalInfluence = [0, 0, 0]
 
-        for h in tileManager.getHexes()
-            influence = [0,0]
-            for p in @players
-                playerHex = [Math.round(p.hex[0]), Math.round(p.hex[1])]
-                distance = Hex.distance playerHex, h
-                influence[p.team] += Math.pow 2, (5-distance)
+        ###
+            # calculate implicit territory control
+            # players have 32/16/8/4/2/1 influence
+            # naive brute force approach - for each tile, lookup distance of each player
 
-            if influence[0] >= (influence[1]+diffInfluence) and influence[0] >= minInfluence
-                tileManager.capture h, 0
+            #influence to capture
+            minInfluence = 16
+
+            # required influence advantage over enemy
+            diffInfluence = 5
+
+
+            for h in tileManager.getHexes()
+                influence = [0,0]
+                for p in @players
+                    playerHex = [Math.round(p.hex[0]), Math.round(p.hex[1])]
+                    distance = Hex.distance playerHex, h
+                    influence[p.team] += Math.pow 2, (5-distance)
+
+                if influence[0] >= (influence[1]+diffInfluence) and influence[0] >= minInfluence
+                    tileManager.capture h, 0
+                    @totalInfluence[0] += 1
+                else if influence[1] >= (influence[0]+diffInfluence) and influence[1] >= minInfluence
+                    tileManager.capture h, 1
+                    @totalInfluence[1] += 1
+                else
+                    tileManager.capture h, null
+                    @totalInfluence[2] += 1
+        ###
+
+
+        for h in tileManager.getHexes()
+            if tileManager.getTeam(h) is 0
                 @totalInfluence[0] += 1
-            else if influence[1] >= (influence[0]+diffInfluence) and influence[1] >= minInfluence
-                tileManager.capture h, 1
+            else if tileManager.getTeam(h) is 1
                 @totalInfluence[1] += 1
             else
-                tileManager.capture h, null
                 @totalInfluence[2] += 1
-
 
         if not _.isEqual lastInfluence, @totalInfluence
             if renderUI?
@@ -315,27 +385,39 @@ class GameView
             hexes.add String(h)
         for p in @players
             hexes.delete String(p.hex)
-        hexes.add String(@selectedPlayer.hex)
+        if @selectedPlayer?
+            hexes.add String(@selectedPlayer.hex)
         hexes
 
     selectHex: (selectedHex) ->
-        if not @selectedPlayer?
-            for player, i in @players
-                if _.isEqual selectedHex, player.hex
-                    if @currentTeamTurn is player.team
-                        player.setState "selected"
-                        @selectedPlayer = player
-        else
-            path = Hex.shortestPath @selectedPlayer.hex, selectedHex, @availableHexes()
-            if path? and (path.length-1) <= @movesRemaining
-                @selectedPlayer.moveOnPath path
-                @selectedPlayer.setState "none"
-                @selectedPlayer = null
-                @movesRemaining -= (path.length - 1)
-                renderUI(this)
+        if @activeCard?
+            # play the card
+            if @getActiveCardID() is "Influence"
+                adjs = Hex.getAdjacent selectedHex, @availableHexes()
+                for h in adjs
+                    tileManager.capture h, @currentTeamTurn
+                tileManager.capture selectedHex, @currentTeamTurn
+                @teamCards[@currentTeamTurn].splice @activeCard, 1
+                @nextTurn()
 
-                if @movesRemaining is 0
-                    @nextTurn()
+        else
+            if not @selectedPlayer?
+                for player, i in @players
+                    if _.isEqual selectedHex, player.hex
+                        if @currentTeamTurn is player.team
+                            player.setState "selected"
+                            @selectedPlayer = player
+            else
+                path = Hex.shortestPath @selectedPlayer.hex, selectedHex, @availableHexes()
+                if path? and (path.length-1) <= @movesRemaining
+                    @selectedPlayer.moveOnPath path
+                    @selectedPlayer.setState "none"
+                    @selectedPlayer = null
+                    @movesRemaining -= (path.length - 1)
+                    renderUI(this)
+
+                    if @movesRemaining is 0
+                        @nextTurn()
 
     deselect: ->
         if @selectedPlayer?
@@ -344,12 +426,19 @@ class GameView
 
 
 gameView = new GameView()
-gameView.newPlayer [0,1], 0
-gameView.newPlayer [0,3], 0
-gameView.newPlayer [0,5], 0
-gameView.newPlayer [12,1], 1
-gameView.newPlayer [12,3], 1
-gameView.newPlayer [12,5], 1
+# gameView.newPlayer [0,1], 0
+# gameView.newPlayer [0,3], 0
+# gameView.newPlayer [0,5], 0
+# gameView.newPlayer [12,1], 1
+# gameView.newPlayer [12,3], 1
+# gameView.newPlayer [12,5], 1
+
+# gameView.newPlayer [1,1], 0
+# gameView.newPlayer [1,3], 0
+# gameView.newPlayer [1,5], 0
+# gameView.newPlayer [5,1], 1
+# gameView.newPlayer [5,3], 1
+# gameView.newPlayer [5,5], 1
 
 renderer.setClearColor 0x333333, 1
 renderer.setSize WIDTH, HEIGHT
@@ -391,9 +480,10 @@ render = ->
         outofrange: []
         highlight: []
 
+    tower.setVisible false
     if hoveredHex?
+        availableHexes = gameView.availableHexes()
         if gameView.selectedPlayer?
-            availableHexes = gameView.availableHexes()
             path = Hex.shortestPath gameView.selectedPlayer.hex, hoveredHex, availableHexes
             if path?
                 for h, i in path
@@ -418,7 +508,24 @@ render = ->
                         tileStates.outofrange.push h
 
         else
-            tileStates.highlight.push hoveredHex
+            if gameView.casting
+                myTile = tileManager.getTeam(hoveredHex) is gameView.currentTeamTurn
+                blankTile = gameView.availableHexes().has String(hoveredHex)
+                if myTile and blankTile
+                    tower.setPosition hoveredHex
+                    tower.setVisible true
+                    tileStates.highlight.push hoveredHex
+                else
+                    tileStates.outofrange.push hoveredHex
+            else if gameView.activeCard isnt null
+                if gameView.getActiveCardID() is "Influence"
+                    adjs = Hex.getAdjacent hoveredHex, availableHexes
+                    for h in adjs
+                        tileStates.onPath.push h
+                    tileStates.onPath.push hoveredHex
+
+            else
+                tileStates.highlight.push hoveredHex
 
 
     # call this as at least want to reset states from last render
@@ -433,15 +540,24 @@ onResize = ->
     camera.updateProjectionMatrix()
 
 onWheel = (e) ->
-    console.log e
     cameraDistance *= if e.deltaY < 0 then 1.05 else 0.95
-    camera.position.y = -4 * cameraDistance
-    camera.position.z = 4 * cameraDistance
+    XYZ = getCameraXYZ cameraDistance
+    camera.position.x = XYZ.x
+    camera.position.y = XYZ.y
+    camera.position.z = XYZ.z
+
+onKeyPress = (e) ->
+    if not gameView.selectedPlayer and gameView.actionsRemaining > 0 and not gameView.casting
+        if e.keyCode is 98 #B
+            gameView.casting = true
+
 
 window.addEventListener 'resize', onResize, false
 window.addEventListener 'mousemove', onMouseMove, false
 window.addEventListener 'click', onClick, false
 window.addEventListener 'wheel', onWheel, false
+window.addEventListener 'keypress', onKeyPress, false
+
 
 update()
 render()
@@ -449,9 +565,69 @@ render()
 UI = React.createClass
     render: ->
         <div>
+            <CardsUI gameView={@props.gameView}/>
             <PlayerUI gameView={@props.gameView}/>
             <ScoreUI gameView={@props.gameView}/>
         </div>
+
+CardsUI = React.createClass
+
+    select: (cardID) ->
+        @props.gameView.setActiveCard cardID
+
+    render: ->
+
+        containerStyle =
+            display: "inline-block"
+            textAlign: "center"
+            position: "absolute"
+            fontFamily: "Open Sans"
+            bottom: 0
+            right: 0
+            padding: 15
+            fontSize: 24
+
+        <div style={containerStyle}>
+            {
+                for cardID, i in @props.gameView.teamCards[@props.gameView.currentTeamTurn]
+                    <Card cardID={cardID} cardNo={i} key={i} active={i is @props.gameView.activeCard} select={@select}/>
+            }
+        </div>
+
+Card = React.createClass
+    getInitialState: ->
+        hover: false
+    mouseOver: ->
+        @setState
+            hover: true
+    mouseOut: ->
+        @setState
+            hover: false
+    mouseUp: ->
+        @props.select @props.cardNo
+
+    render: ->
+        cardStyle =
+            display: "inline-block"
+            textAlign: "center"
+            float: "right"
+            fontFamily: "Open Sans"
+            width: 100
+            height: 200
+            margin: 15
+            backgroundColor: Colors.baseTile
+            color:Colors.background
+            fontSize: 18
+            padding: 32
+            boxShadow: "0px 0px 8px 8px #{if @props.active or @state.hover then 'rgba(46, 204, 113, 0.4)' else 'rgba(0, 0, 0, 0.2)'}"
+            borderRadius: 20
+
+
+
+        <div style={cardStyle} onMouseOver=@mouseOver onMouseOut=@mouseOut onMouseUp=@mouseUp>
+            {Cards[@props.cardID].description}
+        </div>
+
 
 ScoreUI = React.createClass
     render: ->
@@ -474,13 +650,13 @@ ScoreUI = React.createClass
 PlayerUI = React.createClass
     render: ->
         style =
-            width: 220
-            height: 140
+            width: 180
+            height: 100
             backgroundColor: [Colors.purple, Colors.red][@props.gameView.currentTeamTurn]
             borderTopRightRadius: 200
             boxShadow: "4px -4px 12px 12px rgba(0, 0, 0, 0.2)"
             position: "absolute"
-            padding: 40
+            padding: 60
             fontSize: 24
             fontFamily: "Open Sans"
             left: 0
@@ -489,9 +665,6 @@ PlayerUI = React.createClass
         <div style={style} className="noSelect">
             { @props.gameView.getTeamName() } turn<br />
             Turn {@props.gameView.turn} / 60 <br />
-            {("O" for x in [0...@props.gameView.movesRemaining]).join(" ")} <br />
-            84 s  <br />
-            19 tiles
         </div>
 
 
