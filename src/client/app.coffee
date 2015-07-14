@@ -558,7 +558,6 @@ window.addEventListener 'click', onClick, false
 window.addEventListener 'wheel', onWheel, false
 window.addEventListener 'keypress', onKeyPress, false
 
-
 update()
 render()
 
