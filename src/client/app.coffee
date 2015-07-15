@@ -173,6 +173,15 @@ class TileManager
                 tile.setState state
         return
 
+    adjacentToTeam: (hex, team) ->
+        if @getTeam(hex) is team
+            return true
+        adjacents = Hex.getAdjacent hex
+        for h in adjacents
+            if @getTeam(h) is team
+                return true
+        return false
+
     getHexes: ->
         hexes = []
         @_uuidToHex.forEach (h, uuid) -> hexes.push h
@@ -188,16 +197,16 @@ class TileManager
 
     getTeam: (hex) ->
         tile = @_fromHex hex
-        tile.team
+        tile?.team
 
 tileManager = new TileManager 13,7
 
 
 class Tower
-    constructor: ->
-        @coneHeight = 80
-        @geometry = new THREE.CylinderGeometry(10, 10, @coneHeight, 4)
-        @material = new THREE.MeshBasicMaterial( { color: Colors.white, wireframe: true } )
+    constructor: (wireframe=false) ->
+        @coneHeight = 110
+        @geometry = new THREE.CylinderGeometry(5, 15, @coneHeight, 3)
+        @material = new THREE.MeshBasicMaterial( { color: Colors.white, wireframe: wireframe } )
         @mesh = new THREE.Mesh( @geometry, @material )
         @mesh.rotation.x = Math.PI/2
         @mesh.position.z = tileHeight + @coneHeight/2
@@ -213,7 +222,7 @@ class Tower
     setVisible: (visible) ->
         @mesh.visible = visible
 
-tower = new Tower()
+tower = new Tower true
 scene.add tower.mesh
 
 
@@ -285,6 +294,7 @@ class GameView
         @movesPerTurn = 2
         @actionsPerTurn = 1
         @players = []
+        @buildings = []
         @selectedPlayer = null
         @currentTeamTurn = 0
         @turn = 1
@@ -319,6 +329,15 @@ class GameView
 
     getTeamName: ->
         return TEAM_NAMES[@currentTeamTurn]
+
+    addBuilding: (hex, name) ->
+        buildings =
+            "tower": Tower
+        b = new buildings[name]
+        b.setPosition hex
+        b.setVisible true
+        @buildings.push b
+        scene.add b.mesh
 
     newPlayer: (hex, team) ->
         p = new Player()
@@ -389,14 +408,22 @@ class GameView
             hexes.add String(@selectedPlayer.hex)
         hexes
 
+    cast: (cardID, hex, team, restrict=true) ->
+        if cardID is "Influence"
+            if not restrict or ( tileManager.adjacentToTeam(hex, team) and tileManager.getTeam(hex) in [@currentTeamTurn, null])
+                adjs = Hex.getAdjacent hex, @availableHexes()
+                for h in adjs
+                    if not tileManager.getTeam(h)?
+                        tileManager.capture h, team
+                tileManager.capture hex, team
+                @addBuilding hex, "tower"
+                return true
+        return false
+
     selectHex: (selectedHex) ->
         if @activeCard?
             # play the card
-            if @getActiveCardID() is "Influence"
-                adjs = Hex.getAdjacent selectedHex, @availableHexes()
-                for h in adjs
-                    tileManager.capture h, @currentTeamTurn
-                tileManager.capture selectedHex, @currentTeamTurn
+            if @cast @getActiveCardID(), selectedHex, @currentTeamTurn
                 @teamCards[@currentTeamTurn].splice @activeCard, 1
                 @nextTurn()
 
@@ -426,19 +453,9 @@ class GameView
 
 
 gameView = new GameView()
-# gameView.newPlayer [0,1], 0
-# gameView.newPlayer [0,3], 0
-# gameView.newPlayer [0,5], 0
-# gameView.newPlayer [12,1], 1
-# gameView.newPlayer [12,3], 1
-# gameView.newPlayer [12,5], 1
 
-# gameView.newPlayer [1,1], 0
-# gameView.newPlayer [1,3], 0
-# gameView.newPlayer [1,5], 0
-# gameView.newPlayer [5,1], 1
-# gameView.newPlayer [5,3], 1
-# gameView.newPlayer [5,5], 1
+gameView.cast "Influence", [1,3], 0, false
+gameView.cast "Influence", [5,3], 1, false
 
 renderer.setClearColor 0x333333, 1
 renderer.setSize WIDTH, HEIGHT
@@ -508,21 +525,22 @@ render = ->
                         tileStates.outofrange.push h
 
         else
-            if gameView.casting
-                myTile = tileManager.getTeam(hoveredHex) is gameView.currentTeamTurn
-                blankTile = gameView.availableHexes().has String(hoveredHex)
-                if myTile and blankTile
-                    tower.setPosition hoveredHex
-                    tower.setVisible true
-                    tileStates.highlight.push hoveredHex
-                else
-                    tileStates.outofrange.push hoveredHex
-            else if gameView.activeCard isnt null
+            if gameView.activeCard isnt null
                 if gameView.getActiveCardID() is "Influence"
-                    adjs = Hex.getAdjacent hoveredHex, availableHexes
-                    for h in adjs
-                        tileStates.onPath.push h
-                    tileStates.onPath.push hoveredHex
+                    if tileManager.adjacentToTeam hoveredHex, gameView.currentTeamTurn
+                        adjs = Hex.getAdjacent hoveredHex, availableHexes
+                        if tileManager.getTeam(hoveredHex) not in [gameView.currentTeamTurn, null]
+                            tileStates.outofrange.push hoveredHex
+                        else
+                            for h in adjs
+                                if not tileManager.getTeam(h)?
+                                    tileStates.onPath.push h
+                            if not tileManager.getTeam(hoveredHex)?
+                                tileStates.onPath.push hoveredHex
+                            tower.setPosition hoveredHex
+                            tower.setVisible true
+                    else
+                        tileStates.outofrange.push hoveredHex
 
             else
                 tileStates.highlight.push hoveredHex

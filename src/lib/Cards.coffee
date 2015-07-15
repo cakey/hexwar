@@ -1,5 +1,5 @@
 Cards =
     Influence:
-        description: "Gain Influence, radius 2"
+        description: "Barracks"
 
 module.exports = Cards
