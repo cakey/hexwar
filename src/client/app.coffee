@@ -347,7 +347,6 @@ class GameView
         scene.add p.mesh
 
 
-
     update: ->
         for p in @players
             p.update()
@@ -410,12 +409,10 @@ class GameView
 
     cast: (cardID, hex, team, restrict=true) ->
         if cardID is "Influence"
-            if not restrict or ( tileManager.adjacentToTeam(hex, team) and tileManager.getTeam(hex) in [@currentTeamTurn, null])
-                adjs = Hex.getAdjacent hex, @availableHexes()
-                for h in adjs
-                    if not tileManager.getTeam(h)?
-                        tileManager.capture h, team
-                tileManager.capture hex, team
+            if not restrict or Cards[cardID].allowed(tileManager, hex, team)
+                states = Cards[cardID].newStates(tileManager, hex, @availableHexes())
+                for h in states.captured
+                    tileManager.capture h, team
                 @addBuilding hex, "tower"
                 return true
         return false
@@ -467,7 +464,6 @@ mouseVector = new THREE.Vector3()
 mouseVector.x = 0
 mouseVector.y = 0
 
-
 onClick = (e) ->
     raycaster.setFromCamera( mouseVector, camera )
 
@@ -477,11 +473,9 @@ onClick = (e) ->
     else
         gameView.deselect()
 
-
 onMouseMove = (e) ->
     mouseVector.x = 2 * (e.clientX / window.innerWidth) - 1
     mouseVector.y = 1 - 2 * ( e.clientY / window.innerHeight )
-
 
 update = ->
     gameView.update()
@@ -526,19 +520,14 @@ render = ->
 
         else
             if gameView.activeCard isnt null
-                if gameView.getActiveCardID() is "Influence"
-                    if tileManager.adjacentToTeam hoveredHex, gameView.currentTeamTurn
-                        adjs = Hex.getAdjacent hoveredHex, availableHexes
-                        if tileManager.getTeam(hoveredHex) not in [gameView.currentTeamTurn, null]
-                            tileStates.outofrange.push hoveredHex
-                        else
-                            for h in adjs
-                                if not tileManager.getTeam(h)?
-                                    tileStates.onPath.push h
-                            if not tileManager.getTeam(hoveredHex)?
-                                tileStates.onPath.push hoveredHex
-                            tower.setPosition hoveredHex
-                            tower.setVisible true
+                cardID = gameView.getActiveCardID()
+                if cardID is "Influence"
+                    if Cards[cardID].allowed(tileManager, hoveredHex, gameView.currentTeamTurn)
+                        states = Cards[cardID].newStates(tileManager, hoveredHex, availableHexes)
+                        for h in states.captured
+                            tileStates.onPath.push h
+                        tower.setPosition hoveredHex
+                        tower.setVisible true
                     else
                         tileStates.outofrange.push hoveredHex
 
