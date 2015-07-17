@@ -16,4 +16,11 @@ Cards =
                 states.captured.push hex
             states
 
+    Barracks:
+        description: "Barracks"
+        allowed: (tM, hex, team) ->
+            tM.getTeam(hex) is team
+        newStates: (tM, hex, availableHexes) ->
+            captured: []
+
 module.exports = Cards

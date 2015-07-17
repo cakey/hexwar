@@ -17,6 +17,7 @@ Colors =
     pathTile: "#2ecc71"
     outofrangeTile: "grey"
     background: "#333333"
+    grey: "#BBBBDD"
 
 
 WIDTH = window.innerWidth
@@ -222,8 +223,30 @@ class Tower
     setVisible: (visible) ->
         @mesh.visible = visible
 
-tower = new Tower true
-scene.add tower.mesh
+class Barracks
+    constructor: (wireframe=false) ->
+        @coneHeight = 10
+        @geometry = new THREE.CylinderGeometry(30, 30, @coneHeight, 5)
+        @material = new THREE.MeshBasicMaterial( { color: Colors.grey, wireframe: wireframe } )
+        @mesh = new THREE.Mesh( @geometry, @material )
+        @mesh.rotation.x = Math.PI/2
+        @mesh.position.z = tileHeight + @coneHeight/2
+        @setPosition [0,0]
+        @setVisible false
+
+    setPosition: (hex) ->
+        @hex = hex
+        {@x, @y} = hexTo3d @hex
+        @mesh.position.x = @x
+        @mesh.position.y = @y
+
+    setVisible: (visible) ->
+        @mesh.visible = visible
+
+meshTower = new Tower true
+meshBarracks = new Barracks true
+scene.add meshTower.mesh
+scene.add meshBarracks.mesh
 
 
 class Player
@@ -302,8 +325,8 @@ class GameView
         @actionsRemaining = @actionsPerTurn
         @casting = false
         @teamCards = [
-            ["Influence","Influence","Influence"],
-            ["Influence","Influence","Influence"]
+            ["Influence","Influence","Influence", "Barracks"],
+            ["Influence","Influence","Influence", "Barracks"]
         ]
         @activeCard = null
 
@@ -333,6 +356,7 @@ class GameView
     addBuilding: (hex, name) ->
         buildings =
             "tower": Tower
+            "barracks": Barracks
         b = new buildings[name]
         b.setPosition hex
         b.setVisible true
@@ -408,12 +432,13 @@ class GameView
         hexes
 
     cast: (cardID, hex, team, restrict=true) ->
-        if cardID is "Influence"
+        if Cards[cardID]?
             if not restrict or Cards[cardID].allowed(tileManager, hex, team)
                 states = Cards[cardID].newStates(tileManager, hex, @availableHexes())
                 for h in states.captured
                     tileManager.capture h, team
-                @addBuilding hex, "tower"
+                building = {Influence:"tower", Barracks: "barracks"}[cardID]
+                @addBuilding hex, building
                 return true
         return false
 
@@ -491,7 +516,8 @@ render = ->
         outofrange: []
         highlight: []
 
-    tower.setVisible false
+    meshTower.setVisible false
+    meshBarracks.setVisible false
     if hoveredHex?
         availableHexes = gameView.availableHexes()
         if gameView.selectedPlayer?
@@ -521,15 +547,15 @@ render = ->
         else
             if gameView.activeCard isnt null
                 cardID = gameView.getActiveCardID()
-                if cardID is "Influence"
-                    if Cards[cardID].allowed(tileManager, hoveredHex, gameView.currentTeamTurn)
-                        states = Cards[cardID].newStates(tileManager, hoveredHex, availableHexes)
-                        for h in states.captured
-                            tileStates.onPath.push h
-                        tower.setPosition hoveredHex
-                        tower.setVisible true
-                    else
-                        tileStates.outofrange.push hoveredHex
+                if Cards[cardID].allowed(tileManager, hoveredHex, gameView.currentTeamTurn)
+                    states = Cards[cardID].newStates(tileManager, hoveredHex, availableHexes)
+                    for h in states.captured
+                        tileStates.onPath.push h
+                    building = {Influence:meshTower, Barracks: meshBarracks}[cardID]
+                    building.setPosition hoveredHex
+                    building.setVisible true
+                else
+                    tileStates.outofrange.push hoveredHex
 
             else
                 tileStates.highlight.push hoveredHex
