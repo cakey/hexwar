@@ -140,6 +140,7 @@ class TileManager
         @_uuidToHex = new Map()
         @_hexToUuid = new Map()
         @_uuidToTile = new Map()
+        @buildings = []
 
         # add base tiles to render
         for hexX in [0...7]
@@ -154,6 +155,23 @@ class TileManager
                 @_uuidToTile.set tile.uuid, tile
                 @_hexToUuid.set String([hexX, hexY]), tile.uuid
         scene.add hexagons
+
+    occupiedHex: (hex) ->
+        debugger
+        for b in @buildings
+            if _.isEqual b.hex, hex
+                return true
+        return false
+
+    addBuilding: (hex, name) ->
+        buildings =
+            "tower": Tower
+            "barracks": Barracks
+        b = new buildings[name]
+        b.setPosition hex
+        b.setVisible true
+        @buildings.push b
+        scene.add b.mesh
 
     intersectedHex: (raycaster) ->
         intersects = raycaster.intersectObjects(hexagons.children)
@@ -317,7 +335,6 @@ class GameView
         @movesPerTurn = 2
         @actionsPerTurn = 1
         @players = []
-        @buildings = []
         @selectedPlayer = null
         @currentTeamTurn = 0
         @turn = 1
@@ -325,8 +342,8 @@ class GameView
         @actionsRemaining = @actionsPerTurn
         @casting = false
         @teamCards = [
-            ["Influence","Influence","Influence", "Barracks"],
-            ["Influence","Influence","Influence", "Barracks"]
+            ["Influence","Influence","Barracks", "Barracks"],
+            ["Influence","Influence","Barracks", "Barracks"]
         ]
         @activeCard = null
 
@@ -352,16 +369,6 @@ class GameView
 
     getTeamName: ->
         return TEAM_NAMES[@currentTeamTurn]
-
-    addBuilding: (hex, name) ->
-        buildings =
-            "tower": Tower
-            "barracks": Barracks
-        b = new buildings[name]
-        b.setPosition hex
-        b.setVisible true
-        @buildings.push b
-        scene.add b.mesh
 
     newPlayer: (hex, team) ->
         p = new Player()
@@ -438,7 +445,7 @@ class GameView
                 for h in states.captured
                     tileManager.capture h, team
                 building = {Influence:"tower", Barracks: "barracks"}[cardID]
-                @addBuilding hex, building
+                tileManager.addBuilding hex, building
                 return true
         return false
 

@@ -4,7 +4,7 @@ Cards =
     Influence:
         description: "Watchtower"
         allowed: (tM, hex, team) ->
-            tM.adjacentToTeam(hex, team) and tM.getTeam(hex) in [team, null]
+            (not tM.occupiedHex(hex)) and tM.adjacentToTeam(hex, team) and tM.getTeam(hex) in [team, null]
         newStates: (tM, hex, availableHexes) ->
             states =
                 captured: []
@@ -19,7 +19,7 @@ Cards =
     Barracks:
         description: "Barracks"
         allowed: (tM, hex, team) ->
-            tM.getTeam(hex) is team
+            (not tM.occupiedHex(hex)) and tM.getTeam(hex) is team
         newStates: (tM, hex, availableHexes) ->
             captured: []
 
