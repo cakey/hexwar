@@ -8,8 +8,10 @@ Cards = require '../lib/Cards'
 Colors =
     purple: "#9b59b6"
     darkPurple: "#8e44ad"
+    lightPurple: "#E294FF"
     red: "#e74c3c"
     darkRed: "#c0392b"
+    lightRed: "#ffBBAA"
     selected: "#bdc3c7"
     white: "#ffffff"
     baseTile: "#00b2fc"
@@ -157,7 +159,6 @@ class TileManager
         scene.add hexagons
 
     occupiedHex: (hex) ->
-        debugger
         for b in @buildings
             if _.isEqual b.hex, hex
                 return true
@@ -223,6 +224,7 @@ tileManager = new TileManager 13,7
 
 class Tower
     constructor: (wireframe=false) ->
+        @id = "tower"
         @coneHeight = 110
         @geometry = new THREE.CylinderGeometry(5, 15, @coneHeight, 3)
         @material = new THREE.MeshBasicMaterial( { color: Colors.white, wireframe: wireframe } )
@@ -243,6 +245,7 @@ class Tower
 
 class Barracks
     constructor: (wireframe=false) ->
+        @id = "barracks"
         @coneHeight = 10
         @geometry = new THREE.CylinderGeometry(30, 30, @coneHeight, 5)
         @material = new THREE.MeshBasicMaterial( { color: Colors.grey, wireframe: wireframe } )
@@ -269,8 +272,8 @@ scene.add meshBarracks.mesh
 
 class Player
     constructor: ->
-        @coneHeight = 80
-        @geometry = new THREE.CylinderGeometry(10, 30, @coneHeight, 4)
+        @coneHeight = 25
+        @geometry = new THREE.CylinderGeometry(4, 10, @coneHeight, 15)
         @material = new THREE.MeshBasicMaterial( { color: Colors.white } )
         @mesh = new THREE.Mesh( @geometry, @material )
         @mesh.rotation.x = Math.PI/2
@@ -281,16 +284,18 @@ class Player
     setPosition: (hex) ->
         @hex = hex
         {@x, @y} = hexTo3d @hex
-        @mesh.position.x = @x
-        @mesh.position.y = @y
+        angle = Math.random()*Math.PI*2
+        magnitude = (Math.random()*halfEdge*0.5) + 40
+        @mesh.position.x = @x + (Math.cos(angle) * magnitude)
+        @mesh.position.y = @y + (Math.sin(angle) * magnitude)
 
     setTeam: (team) ->
         @team = team
         if team is 0
-            @material = new THREE.MeshBasicMaterial( { color: Colors.darkPurple } )
+            @material = new THREE.MeshBasicMaterial( { color: Colors.lightPurple } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
         else if team is 1
-            @material = new THREE.MeshBasicMaterial( { color: Colors.darkRed } )
+            @material = new THREE.MeshBasicMaterial( { color: Colors.lightRed } )
             @selectedMaterial = new THREE.MeshBasicMaterial( { color: Colors.selected } )
 
         @mesh.material = @material
@@ -350,6 +355,12 @@ class GameView
 
 
     nextTurn: ->
+        # run actions at end of turn...
+        for building in tileManager.buildings
+            if tileManager.getTeam(building.hex) is @currentTeamTurn
+                if building.id is "barracks"
+                    @newPlayer building.hex, @currentTeamTurn
+
         if @currentTeamTurn is 0
             @currentTeamTurn = 1
         else
@@ -359,6 +370,7 @@ class GameView
         @actionsRemaining = @actionsPerTurn
         @activeCard = null
         renderUI(this)
+
 
     getActiveCardID: ->
         @teamCards[@currentTeamTurn][@activeCard]
