@@ -23,4 +23,10 @@ Cards =
         newStates: (tM, hex, availableHexes) ->
             captured: []
 
+    Attack:
+        description: "Attack"
+        allowed: (tM, hex, team) ->
+            (tM.adjacentToTeam(hex, team) and not (tM.getTeam(hex) in [team, null]))
+        newStates: (tM, hex, availableHexes) ->
+            captured: []
 module.exports = Cards

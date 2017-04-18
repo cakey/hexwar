@@ -17,6 +17,7 @@ Colors =
     baseTile: "#00b2fc"
     highlightTile: "#f39c12"
     pathTile: "#2ecc71"
+    pointer: "#27ae60"
     outofrangeTile: "grey"
     background: "#333333"
     grey: "#BBBBDD"
@@ -168,6 +169,7 @@ class TileManager
         buildings =
             "tower": Tower
             "barracks": Barracks
+            "pointer": Pointer
         b = new buildings[name]
         b.setPosition hex
         b.setVisible true
@@ -243,6 +245,42 @@ class Tower
     setVisible: (visible) ->
         @mesh.visible = visible
 
+    update: ->
+
+class Pointer
+    constructor: (wireframe=false, teamColor) ->
+        if not teamColor?
+            teamColor = Colors.pointer
+        @id = "pointer"
+        @coneHeight = 50
+        @geometry = new THREE.CylinderGeometry(20, 5, @coneHeight, 6)
+        @material = new THREE.MeshBasicMaterial( { color: teamColor, wireframe: wireframe } )
+        @mesh = new THREE.Mesh( @geometry, @material )
+        @mesh.rotation.x = Math.PI/2
+        @mesh.position.z = tileHeight + @coneHeight + 20
+        @setPosition [0,0]
+        @setVisible false
+
+        @max = 50
+        @direction = 2
+        @current = 0
+
+    setPosition: (hex) ->
+        @hex = hex
+        {@x, @y} = hexTo3d @hex
+        @mesh.position.x = @x
+        @mesh.position.y = @y
+
+    setVisible: (visible) ->
+        @mesh.visible = visible
+
+    update: ->
+        if @current >= @max or @current < 0
+            @direction *= -1
+        @mesh.position.z += @direction
+        @mesh.rotation.y += Math.PI/50
+        @current += @direction
+
 class Barracks
     constructor: (wireframe=false) ->
         @id = "barracks"
@@ -264,10 +302,14 @@ class Barracks
     setVisible: (visible) ->
         @mesh.visible = visible
 
+    update: ->
+
 meshTower = new Tower true
 meshBarracks = new Barracks true
+meshPointer = new Pointer true
 scene.add meshTower.mesh
 scene.add meshBarracks.mesh
+scene.add meshPointer.mesh
 
 
 class Player
@@ -347,8 +389,8 @@ class GameView
         @actionsRemaining = @actionsPerTurn
         @casting = false
         @teamCards = [
-            ["Influence","Influence","Barracks", "Barracks"],
-            ["Influence","Influence","Barracks", "Barracks"]
+            ["Influence","Influence","Barracks", "Barracks", "Attack"],
+            ["Influence","Influence","Barracks", "Barracks", "Attack"]
         ]
         @activeCard = null
 
@@ -393,6 +435,9 @@ class GameView
     update: ->
         for p in @players
             p.update()
+
+        for b in tileManager.buildings
+            b.update()
 
         lastInfluence = @totalInfluence
         @totalInfluence = [0, 0, 0]
@@ -456,7 +501,11 @@ class GameView
                 states = Cards[cardID].newStates(tileManager, hex, @availableHexes())
                 for h in states.captured
                     tileManager.capture h, team
-                building = {Influence:"tower", Barracks: "barracks"}[cardID]
+                building = {
+                    Influence:"tower",
+                    Barracks: "barracks"
+                    Attack: "pointer"
+                }[cardID]
                 tileManager.addBuilding hex, building
                 return true
         return false
@@ -537,47 +586,30 @@ render = ->
 
     meshTower.setVisible false
     meshBarracks.setVisible false
+    meshPointer.setVisible false
     if hoveredHex?
         availableHexes = gameView.availableHexes()
-        if gameView.selectedPlayer?
-            path = Hex.shortestPath gameView.selectedPlayer.hex, hoveredHex, availableHexes
-            if path?
-                for h, i in path
-                    if i < gameView.movesRemaining
-                        tileStates.onPath.push h
-                    else if i is gameView.movesRemaining
-                        # the last tile in the range should highlight
-                        # so you know it is max distance...
-                        if _.isEqual h, hoveredHex
-                            tileStates.highlight.push h
-                        else
-                            tileStates.onPath.push h
-                    else if i > gameView.movesRemaining
-                        tileStates.outofrange.push h
-            else
-                # might be hovering over a player
-                # want invalid path to show rather than nothing
-                availableHexes.add String(hoveredHex)
-                path = Hex.shortestPath gameView.selectedPlayer.hex, hoveredHex, availableHexes
-                if path?
-                    for h in path
-                        tileStates.outofrange.push h
-
-        else
-            if gameView.activeCard isnt null
-                cardID = gameView.getActiveCardID()
-                if Cards[cardID].allowed(tileManager, hoveredHex, gameView.currentTeamTurn)
-                    states = Cards[cardID].newStates(tileManager, hoveredHex, availableHexes)
-                    for h in states.captured
-                        tileStates.onPath.push h
-                    building = {Influence:meshTower, Barracks: meshBarracks}[cardID]
+        if gameView.activeCard isnt null
+            cardID = gameView.getActiveCardID()
+            if Cards[cardID].allowed(tileManager, hoveredHex, gameView.currentTeamTurn)
+                states = Cards[cardID].newStates(tileManager, hoveredHex, availableHexes)
+                for h in states.captured
+                    tileStates.onPath.push h
+                building = {
+                    Influence: meshTower,
+                    Barracks: meshBarracks
+                    Attack: meshPointer
+                }[cardID]
+                if building?
                     building.setPosition hoveredHex
                     building.setVisible true
                 else
-                    tileStates.outofrange.push hoveredHex
-
+                    tileStates.onPath.push hoveredHex
             else
-                tileStates.highlight.push hoveredHex
+                tileStates.outofrange.push hoveredHex
+
+        else
+            tileStates.highlight.push hoveredHex
 
 
     # call this as at least want to reset states from last render
