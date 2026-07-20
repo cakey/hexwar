@@ -1,6 +1,9 @@
-.sass-cache
-node_modules
-public
-todo
-gen
-npm-debug.log
+node_modules/
+dist/
+coverage/
+.vite/
+.cache/
+playwright-report/
+test-results/
+*.log
+.DS_Store

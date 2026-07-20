@@ -1,49 +1,37 @@
 {
-  "name": "arena",
-  "version": "0.0.0",
-  "description": "",
-  "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/cakey/arena.git"
+  "name": "hexwar",
+  "version": "1.0.0",
+  "private": true,
+  "description": "A turn-based strategy game played on a hexagonal battlefield.",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest run",
+    "test:e2e": "npm run build && PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright playwright test",
+    "e2e:install": "PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright playwright install chromium",
+    "test:watch": "vitest",
+    "lint": "eslint .",
+    "check": "npm run lint && npm test && npm run test:e2e"
   },
-  "author": "Ben Shaw",
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "license": "BSD-2-Clause",
-  "bugs": {
-    "url": "https://github.com/cakey/arena/issues"
+  "dependencies": {
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
+    "three": "^0.185.1"
   },
   "devDependencies": {
-    "chai": "^2.3.0",
-    "coffee-reactify": "^3.0.0",
-    "coffee-script": "~1.7.1",
-    "coffeeify": "^1.1.0",
-    "connect-livereload": "^0.5.3",
-    "express": "^4.8.2",
-    "gulp": "~3.8.7",
-    "gulp-browserify": "^0.5.0",
-    "gulp-clean": "~0.2.4",
-    "gulp-coffee": "~2.3.1",
-    "gulp-coffeelint": "^0.3.3",
-    "gulp-concat": "~2.1.7",
-    "gulp-jade": "~0.4.0",
-    "gulp-livereload": "^2.1.0",
-    "gulp-load-plugins": "^0.5.3",
-    "gulp-rename": "^1.2.0",
-    "gulp-sass": "~0.6.0",
-    "gulp-util": "~2.2.12",
-    "karma": "^0.12.21",
-    "karma-beep-reporter": "^0.1.4",
-    "karma-chrome-launcher": "^0.1.4",
-    "karma-mocha": "^0.1.7",
-    "karma-mocha-reporter": "^1.0.2",
-    "mocha": "^2.2.5"
-  },
-  "dependencies": {
-    "classnames": "^1.2.0",
-    "lodash": "^3.9.1",
-    "node-uuid": "^1.4.1",
-    "react": "^0.13.3",
-    "rsvp": "^3.0.13",
-    "ws": "^0.7.2"
+    "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "@vitejs/plugin-react": "^6.0.3",
+    "eslint": "^10.7.0",
+    "eslint-plugin-react-hooks": "^7.1.1",
+    "globals": "^17.7.0",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   }
 }
