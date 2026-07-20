@@ -1,7 +1,32 @@
 import * as THREE from 'three';
 import { distance, hexKey, shortestPath } from './hex.js';
+import type { Hex } from './hex.js';
 
-export const TEAM_NAMES = ['Violet', 'Crimson'];
+export const TEAM_NAMES = ['Violet', 'Crimson'] as const;
+
+type Team = 0 | 1;
+type TilePreview = 'none' | 'highlight' | 'onPath' | 'outOfRange';
+type ActivePreview = Exclude<TilePreview, 'none'>;
+
+interface PreviewMap {
+  onPath: Hex[];
+  outOfRange: Hex[];
+  highlight: Hex[];
+}
+
+interface MovementSegment {
+  from: Hex;
+  to: Hex;
+}
+
+export interface GameSnapshot {
+  currentTeamTurn: Team;
+  teamName: (typeof TEAM_NAMES)[Team];
+  turn: number;
+  movesRemaining: number;
+  totalInfluence: [number, number, number];
+  hasSelection: boolean;
+}
 
 export const COLORS = {
   violet: 0x9b5de5,
@@ -21,7 +46,7 @@ const BOARD_COLUMNS = 13;
 const BOARD_ROWS = 7;
 const MOVES_PER_TURN = 4;
 
-function makeHexGeometry() {
+function makeHexGeometry(): THREE.ExtrudeGeometry {
   const stalk = HALF_EDGE * Math.tan(Math.PI / 3);
   const shape = new THREE.Shape();
   shape.moveTo(-HALF_EDGE, -stalk);
@@ -43,7 +68,7 @@ function makeHexGeometry() {
   return geometry;
 }
 
-function hexToWorld([column, row]) {
+function hexToWorld([column, row]: Hex): { x: number; y: number } {
   const border = 12;
   const edge = HALF_EDGE * 2;
   const extra = column % 2;
@@ -56,7 +81,13 @@ function hexToWorld([column, row]) {
 }
 
 class Tile {
-  constructor(hex, geometry) {
+  readonly hex: Hex;
+  team: Team | null;
+  preview: TilePreview;
+  readonly material: THREE.MeshStandardMaterial;
+  readonly mesh: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial>;
+
+  constructor(hex: Hex, geometry: THREE.ExtrudeGeometry) {
     this.hex = hex;
     this.team = null;
     this.preview = 'none';
@@ -71,27 +102,27 @@ class Tile {
     this.mesh.userData.tile = this;
   }
 
-  setPreview(preview) {
+  setPreview(preview: TilePreview): void {
     if (preview !== this.preview) {
       this.preview = preview;
       this.updateColor();
     }
   }
 
-  capture(team) {
+  capture(team: Team | null): void {
     if (team !== this.team) {
       this.team = team;
       this.updateColor();
     }
   }
 
-  updateColor() {
-    const previewColors = {
+  updateColor(): void {
+    const previewColors: Partial<Record<TilePreview, number>> = {
       highlight: COLORS.highlight,
       onPath: COLORS.path,
       outOfRange: COLORS.outOfRange,
     };
-    const teamColors = [COLORS.violet, COLORS.crimson];
+    const teamColors: [number, number] = [COLORS.violet, COLORS.crimson];
     const color = previewColors[this.preview]
       ?? (this.team === null ? COLORS.base : teamColors[this.team]);
     this.material.color.setHex(color);
@@ -99,7 +130,10 @@ class Tile {
 }
 
 class TileManager {
-  constructor(scene) {
+  readonly group: THREE.Group;
+  readonly tiles: Map<string, Tile>;
+
+  constructor(scene: THREE.Scene) {
     this.group = new THREE.Group();
     this.group.name = 'battlefield';
     this.tiles = new Map();
@@ -117,33 +151,41 @@ class TileManager {
     scene.add(this.group);
   }
 
-  intersect(raycaster) {
+  intersect(raycaster: THREE.Raycaster): Hex | undefined {
     const intersection = raycaster.intersectObjects(this.group.children, false)[0];
-    return intersection?.object.userData.tile.hex;
+    return (intersection?.object.userData.tile as Tile | undefined)?.hex;
   }
 
-  getHexes() {
+  getHexes(): Hex[] {
     return [...this.tiles.values()].map((tile) => tile.hex);
   }
 
-  setPreviews(previews) {
+  setPreviews(previews: PreviewMap): void {
     for (const tile of this.tiles.values()) {
       tile.setPreview('none');
     }
-    for (const [preview, hexes] of Object.entries(previews)) {
+    for (const [preview, hexes] of Object.entries(previews) as Array<[ActivePreview, Hex[]]>) {
       for (const hex of hexes) {
         this.tiles.get(hexKey(hex))?.setPreview(preview);
       }
     }
   }
 
-  capture(hex, team) {
+  capture(hex: Hex, team: Team | null): void {
     this.tiles.get(hexKey(hex))?.capture(team);
   }
 }
 
 class Player {
-  constructor(scene, hex, team) {
+  hex: Hex;
+  readonly team: Team;
+  selected: boolean;
+  segments: MovementSegment[];
+  segmentProgress: number;
+  readonly material: THREE.MeshStandardMaterial;
+  readonly mesh: THREE.Mesh<THREE.CylinderGeometry, THREE.MeshStandardMaterial>;
+
+  constructor(scene: THREE.Scene, hex: Hex, team: Team) {
     this.hex = hex;
     this.team = team;
     this.selected = false;
@@ -163,20 +205,20 @@ class Player {
     scene.add(this.mesh);
   }
 
-  setWorldPosition(hex) {
+  setWorldPosition(hex: Hex): void {
     const { x, y } = hexToWorld(hex);
     this.mesh.position.x = x;
     this.mesh.position.y = y;
   }
 
-  setSelected(selected) {
+  setSelected(selected: boolean): void {
     this.selected = selected;
     this.material.emissive.setHex(selected ? COLORS.selected : 0x000000);
     this.material.emissiveIntensity = selected ? 0.55 : 0;
   }
 
-  moveOnPath(path) {
-    this.hex = path.at(-1);
+  moveOnPath(path: Hex[]): void {
+    this.hex = path.at(-1)!;
     this.segments = path.slice(1).map((to, index) => ({
       from: path[index],
       to,
@@ -184,7 +226,7 @@ class Player {
     this.segmentProgress = 0;
   }
 
-  update(deltaSeconds) {
+  update(deltaSeconds: number): void {
     if (this.selected) {
       this.mesh.rotation.y += deltaSeconds * 2.4;
     }
@@ -193,7 +235,7 @@ class Player {
     this.segmentProgress += deltaSeconds / 0.16;
 
     while (this.segmentProgress >= 1 && this.segments.length > 0) {
-      const completed = this.segments.shift();
+      const completed = this.segments.shift()!;
       this.setWorldPosition(completed.to);
       this.segmentProgress -= 1;
     }
@@ -209,7 +251,21 @@ class Player {
 }
 
 class Game {
-  constructor(scene, tileManager, onChange) {
+  private readonly scene: THREE.Scene;
+  private readonly tileManager: TileManager;
+  private readonly onChange: (snapshot: GameSnapshot) => void;
+  private players: Player[];
+  private selectedPlayer: Player | null = null;
+  private currentTeamTurn: Team = 0;
+  private turn = 1;
+  private movesRemaining = MOVES_PER_TURN;
+  private totalInfluence: [number, number, number] = [0, 0, 0];
+
+  constructor(
+    scene: THREE.Scene,
+    tileManager: TileManager,
+    onChange: (snapshot: GameSnapshot) => void,
+  ) {
     this.scene = scene;
     this.tileManager = tileManager;
     this.onChange = onChange;
@@ -217,7 +273,7 @@ class Game {
     this.reset();
   }
 
-  reset() {
+  reset(): void {
     for (const player of this.players) {
       this.scene.remove(player.mesh);
       player.mesh.geometry.dispose();
@@ -231,7 +287,7 @@ class Game {
     this.movesRemaining = MOVES_PER_TURN;
     this.totalInfluence = [0, 0, 0];
 
-    const startingPlayers = [
+    const startingPlayers: Array<[Hex, Team]> = [
       [[0, 1], 0], [[0, 3], 0], [[0, 5], 0],
       [[12, 1], 1], [[12, 3], 1], [[12, 5], 1],
     ];
@@ -242,29 +298,29 @@ class Game {
     this.notify();
   }
 
-  snapshot() {
+  snapshot(): GameSnapshot {
     return {
       currentTeamTurn: this.currentTeamTurn,
       teamName: TEAM_NAMES[this.currentTeamTurn],
       turn: this.turn,
       movesRemaining: this.movesRemaining,
-      totalInfluence: [...this.totalInfluence],
+      totalInfluence: [...this.totalInfluence] as [number, number, number],
       hasSelection: this.selectedPlayer !== null,
     };
   }
 
-  notify() {
+  notify(): void {
     this.onChange(this.snapshot());
   }
 
-  nextTurn() {
+  nextTurn(): void {
     this.deselect(false);
     this.currentTeamTurn = this.currentTeamTurn === 0 ? 1 : 0;
     this.turn += 1;
     this.movesRemaining = MOVES_PER_TURN;
   }
 
-  availableHexes() {
+  availableHexes(): Set<string> {
     const available = new Set(this.tileManager.getHexes().map(hexKey));
     for (const player of this.players) {
       available.delete(hexKey(player.hex));
@@ -275,7 +331,7 @@ class Game {
     return available;
   }
 
-  selectHex(selectedHex) {
+  selectHex(selectedHex: Hex): void {
     if (!this.selectedPlayer) {
       const player = this.players.find(({ hex }) => hexKey(hex) === hexKey(selectedHex));
       if (player?.team === this.currentTeamTurn && player.segments.length === 0) {
@@ -291,8 +347,8 @@ class Game {
       selectedHex,
       this.availableHexes(),
     );
-    const moveCost = path ? path.length - 1 : Number.POSITIVE_INFINITY;
-    if (moveCost > this.movesRemaining) return;
+    if (!path || path.length - 1 > this.movesRemaining) return;
+    const moveCost = path.length - 1;
 
     this.selectedPlayer.moveOnPath(path);
     this.selectedPlayer.setSelected(false);
@@ -303,7 +359,7 @@ class Game {
     this.notify();
   }
 
-  deselect(shouldNotify = true) {
+  deselect(shouldNotify = true): void {
     if (this.selectedPlayer) {
       this.selectedPlayer.setSelected(false);
       this.selectedPlayer = null;
@@ -311,19 +367,19 @@ class Game {
     }
   }
 
-  update(deltaSeconds) {
+  update(deltaSeconds: number): void {
     for (const player of this.players) player.update(deltaSeconds);
   }
 
-  updateTerritory() {
-    const totals = [0, 0, 0];
+  updateTerritory(): void {
+    const totals: [number, number, number] = [0, 0, 0];
     for (const hex of this.tileManager.getHexes()) {
-      const influence = [0, 0];
+      const influence: [number, number] = [0, 0];
       for (const player of this.players) {
         influence[player.team] += 2 ** (5 - distance(player.hex, hex));
       }
 
-      let team = null;
+      let team: Team | null = null;
       if (influence[0] >= influence[1] + 6 && influence[0] >= 16) team = 0;
       if (influence[1] >= influence[0] + 6 && influence[1] >= 16) team = 1;
       this.tileManager.capture(hex, team);
@@ -332,8 +388,8 @@ class Game {
     this.totalInfluence = totals;
   }
 
-  previewsFor(hoveredHex) {
-    const previews = { onPath: [], outOfRange: [], highlight: [] };
+  previewsFor(hoveredHex?: Hex): PreviewMap {
+    const previews: PreviewMap = { onPath: [], outOfRange: [], highlight: [] };
     if (!hoveredHex) return previews;
 
     if (!this.selectedPlayer) {
@@ -361,9 +417,22 @@ class Game {
 }
 
 export class GameEngine {
-  constructor(container, onStateChange) {
+  private readonly container: HTMLElement;
+  private readonly pointer: THREE.Vector2;
+  private readonly raycaster: THREE.Raycaster;
+  private readonly timer: THREE.Timer;
+  private readonly scene: THREE.Scene;
+  private readonly camera: THREE.PerspectiveCamera;
+  private readonly renderer: THREE.WebGLRenderer;
+  private readonly tileManager: TileManager;
+  private readonly game: Game;
+  private readonly handleResize: () => void;
+  private readonly handlePointerMove: (event: PointerEvent) => void;
+  private readonly handlePointerLeave: () => void;
+  private readonly handlePointerDown: (event: PointerEvent) => void;
+
+  constructor(container: HTMLElement, onStateChange: (snapshot: GameSnapshot) => void) {
     this.container = container;
-    this.onStateChange = onStateChange;
     this.pointer = new THREE.Vector2(2, 2);
     this.raycaster = new THREE.Raycaster();
     this.timer = new THREE.Timer();
@@ -401,11 +470,11 @@ export class GameEngine {
     this.renderer.setAnimationLoop(() => this.render());
   }
 
-  reset() {
+  reset(): void {
     this.game.reset();
   }
 
-  resize() {
+  resize(): void {
     const width = Math.max(this.container.clientWidth, 1);
     const height = Math.max(this.container.clientHeight, 1);
     this.renderer.setSize(width, height, false);
@@ -423,29 +492,29 @@ export class GameEngine {
     this.camera.lookAt(center);
   }
 
-  updatePointer(event) {
+  updatePointer(event: PointerEvent): void {
     const bounds = this.renderer.domElement.getBoundingClientRect();
     this.pointer.x = ((event.clientX - bounds.left) / bounds.width) * 2 - 1;
     this.pointer.y = -((event.clientY - bounds.top) / bounds.height) * 2 + 1;
   }
 
-  pointerMove(event) {
+  pointerMove(event: PointerEvent): void {
     this.updatePointer(event);
   }
 
-  pointerDown(event) {
+  pointerDown(event: PointerEvent): void {
     this.updatePointer(event);
     const clickedHex = this.intersectedHex();
     if (clickedHex) this.game.selectHex(clickedHex);
     else this.game.deselect();
   }
 
-  intersectedHex() {
+  intersectedHex(): Hex | undefined {
     this.raycaster.setFromCamera(this.pointer, this.camera);
     return this.tileManager.intersect(this.raycaster);
   }
 
-  render() {
+  render(): void {
     this.timer.update();
     const delta = Math.min(this.timer.getDelta(), 0.05);
     this.game.update(delta);
@@ -454,7 +523,7 @@ export class GameEngine {
     this.renderer.domElement.dataset.rendered = 'true';
   }
 
-  destroy() {
+  destroy(): void {
     this.renderer.setAnimationLoop(null);
     this.timer.dispose();
     window.removeEventListener('resize', this.handleResize);

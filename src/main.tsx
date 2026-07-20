@@ -1,9 +1,10 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { GameEngine } from './game.js';
+import type { GameSnapshot } from './game.js';
 import './styles.css';
 
-const INITIAL_STATE = {
+const INITIAL_STATE: GameSnapshot = {
   currentTeamTurn: 0,
   teamName: 'Violet',
   turn: 1,
@@ -12,7 +13,11 @@ const INITIAL_STATE = {
   hasSelection: false,
 };
 
-function Score({ scores }) {
+interface ScoreProps {
+  scores: [number, number, number];
+}
+
+function Score({ scores }: ScoreProps) {
   return (
     <section className="score" aria-label="Territory score">
       <span className="score__team score__team--violet">{scores[0]}</span>
@@ -22,7 +27,12 @@ function Score({ scores }) {
   );
 }
 
-function TurnPanel({ game, onReset }) {
+interface TurnPanelProps {
+  game: GameSnapshot;
+  onReset: () => void;
+}
+
+function TurnPanel({ game, onReset }: TurnPanelProps) {
   const moveMarkers = Array.from({ length: 4 }, (_, index) => (
     <span
       className={index < game.movesRemaining ? 'move move--ready' : 'move'}
@@ -48,16 +58,16 @@ function TurnPanel({ game, onReset }) {
 }
 
 function App() {
-  const battlefieldRef = useRef(null);
-  const engineRef = useRef(null);
-  const [game, setGame] = useState(INITIAL_STATE);
+  const battlefieldRef = useRef<HTMLDivElement>(null);
+  const engineRef = useRef<GameEngine | null>(null);
+  const [game, setGame] = useState<GameSnapshot>(INITIAL_STATE);
   const [renderError, setRenderError] = useState(false);
 
   useEffect(() => {
     let active = true;
-    let engine;
+    let engine: GameEngine | undefined;
     try {
-      engine = new GameEngine(battlefieldRef.current, setGame);
+      engine = new GameEngine(battlefieldRef.current!, setGame);
       engineRef.current = engine;
     } catch (error) {
       console.error('Unable to start the HexWar renderer.', error);
@@ -94,7 +104,7 @@ function App() {
   );
 }
 
-createRoot(document.getElementById('root')).render(
+createRoot(document.getElementById('root')!).render(
   <StrictMode>
     <App />
   </StrictMode>,

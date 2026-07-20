@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { distance, getAdjacent, shortestPath } from './hex.js';
+import type { Hex } from './hex.js';
 
 describe('hex algorithms', () => {
   describe('shortestPath', () => {
@@ -19,7 +20,7 @@ describe('hex algorithms', () => {
     });
 
     it('rejects missing endpoints', () => {
-      expect(() => shortestPath([1, 1])).toThrow(/missing/);
+      expect(() => shortestPath([1, 1], undefined as unknown as Hex)).toThrow(/missing/);
     });
 
     it('stays within valid tiles', () => {

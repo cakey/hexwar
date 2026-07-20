@@ -1,8 +1,8 @@
 # HexWar
 
 A small turn-based strategy game on a hexagonal battlefield. This is a modernized
-version of the original 2015 prototype, now built with React, Three.js, Vite, and
-Vitest.
+version of the original 2015 prototype, now built with TypeScript, React,
+Three.js, Vite, and Vitest.
 
 ## Requirements
 
@@ -25,7 +25,8 @@ Vite prints the local development URL, normally <http://localhost:5173>.
 - `npm test` runs the hex-grid unit tests once.
 - `npm run test:e2e` launches an isolated headless browser and verifies WebGL rendering.
 - `npm run e2e:install` installs Playwright's browser into the project cache once.
-- `npm run lint` checks the JavaScript and JSX.
+- `npm run lint` checks the TypeScript, JavaScript, and React components.
+- `npm run typecheck` runs the strict TypeScript compiler without emitting files.
 - `npm run build` creates a production build in `dist/`.
 - `npm run check` runs lint, tests, and the production build.
 

@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { pathToFileURL } from 'node:url';
 
 test('renders a playable WebGL battlefield without browser errors', async ({ page }) => {
-  const browserErrors = [];
+  const browserErrors: string[] = [];
   page.on('console', (message) => {
     if (message.type() === 'error') browserErrors.push(message.text());
   });
@@ -19,9 +19,10 @@ test('renders a playable WebGL battlefield without browser errors', async ({ pag
   await expect(canvas).toBeVisible();
   await expect.poll(() => canvas.getAttribute('data-rendered')).toBe('true');
 
-  const hasWebGL = await canvas.evaluate((element) => Boolean(
-    element.getContext('webgl2') || element.getContext('webgl'),
-  ));
+  const hasWebGL = await canvas.evaluate((element) => {
+    const canvasElement = element as HTMLCanvasElement;
+    return Boolean(canvasElement.getContext('webgl2') || canvasElement.getContext('webgl'));
+  });
   expect(hasWebGL).toBe(true);
 
   const scores = await page.locator('.score > span').allTextContents();

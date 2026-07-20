@@ -1,7 +1,9 @@
-const key = ([column, row]) => `${column},${row}`;
+export type Hex = [number, number];
 
-export function getAdjacent([column, row], validHexes) {
-  const candidates = column % 2 === 0
+const key = ([column, row]: Hex): string => `${column},${row}`;
+
+export function getAdjacent([column, row]: Hex, validHexes?: ReadonlySet<string>): Hex[] {
+  const candidates: Hex[] = column % 2 === 0
     ? [
         [column - 1, row - 1],
         [column - 1, row],
@@ -24,16 +26,20 @@ export function getAdjacent([column, row], validHexes) {
     : candidates;
 }
 
-export function shortestPath(startHex, endHex, validHexes) {
+export function shortestPath(
+  startHex: Hex,
+  endHex: Hex,
+  validHexes?: ReadonlySet<string>,
+): Hex[] | undefined {
   if (!startHex || !endHex) {
     throw new Error('start/end missing');
   }
 
   const visited = new Set([key(startHex)]);
-  const queue = [[startHex, [startHex]]];
+  const queue: Array<[Hex, Hex[]]> = [[startHex, [startHex]]];
 
   while (queue.length > 0) {
-    const [current, path] = queue.shift();
+    const [current, path] = queue.shift()!;
     if (current[0] === endHex[0] && current[1] === endHex[1]) {
       return path;
     }
@@ -50,13 +56,13 @@ export function shortestPath(startHex, endHex, validHexes) {
   return undefined;
 }
 
-function toCube([column, row]) {
+function toCube([column, row]: Hex): [number, number, number] {
   const x = column;
   const z = row - (column - (column & 1)) / 2;
   return [x, -x - z, z];
 }
 
-export function distance(firstHex, secondHex) {
+export function distance(firstHex: Hex, secondHex: Hex): number {
   const first = toCube(firstHex);
   const second = toCube(secondHex);
   return (
