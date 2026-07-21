@@ -33,7 +33,8 @@ Vite prints the local development URL, normally <http://localhost:5173>.
 - `npm run check` also builds and verifies the app in Playwright.
 
 See [CONTRIBUTING.md](./CONTRIBUTING.md) for the development workflow and
-project boundaries.
+project boundaries, and [docs/architecture.md](./docs/architecture.md) for the
+runtime design and extension points.
 
 ## How to play
 

@@ -1,7 +1,7 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
-import { GameEngine } from './game.js';
-import type { GameSnapshot } from './game.js';
+import type { GameSnapshot } from './model/game.js';
+import { GameEngine } from './rendering/game-engine.js';
 import './styles.css';
 
 const INITIAL_STATE: GameSnapshot = {
@@ -10,7 +10,9 @@ const INITIAL_STATE: GameSnapshot = {
   turn: 1,
   movesRemaining: 4,
   totalInfluence: [0, 0, 0],
+  selectedPieceId: null,
   hasSelection: false,
+  pieces: [],
 };
 
 interface ScoreProps {
