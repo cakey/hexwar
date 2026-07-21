@@ -25,12 +25,17 @@ to the opponent.
 
 ## Turn structure
 
-A player commits exactly one normal action per turn:
+A player may freely pack a deployed Anchor, then commits exactly one normal
+action per turn:
 
 - Move one deployed piece.
 - Deploy one ready reserve piece into its home zone.
-- Deploy or pack an Anchor.
+- Deploy an Anchor.
 - Pass.
+
+Packing is still previewed and confirmed because it changes influence, but it
+does not advance the turn. The player may then move the newly packed Anchor or
+take any other normal action.
 
 Selecting pieces and inspecting candidate actions is free. A candidate becomes a
 planned action and does not change the match until the player confirms it.
@@ -76,7 +81,7 @@ piece leaves territory behind instead of erasing it.
 
 - Scouts trade influence for mobility.
 - Standards provide the dependable center of a formation.
-- Anchors move while packed and spend a full action deploying or packing.
+- Anchors move while packed. Deploying spends the action; packing is free.
 - A forced Anchor retreat always returns it to its packed state.
 - Pieces may not move through or onto occupied tiles.
 - Movement through enemy-controlled territory is legal.

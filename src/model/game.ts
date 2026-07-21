@@ -433,6 +433,8 @@ function applyNormalAction(state: GameState, action: NormalAction): GameState {
 
   next.lastAction = cloneAction(action);
   next = recalculateGameState(next);
+  if (action.type === 'stance' && action.stance === 'packed') return next;
+
   next.pendingRetreatIds = [...dueToRetreat].filter((id) => getPiece(next, id)?.pressured);
   if (next.pendingRetreatIds.length > 0) {
     next.phase = 'retreat';

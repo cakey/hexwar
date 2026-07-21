@@ -45,9 +45,10 @@ opponent and balance strategy in [docs/ai-design.md](./docs/ai-design.md).
 ## How to play
 
 Violet goes first and takes one action: move a piece, place a ready reserve,
-change the Anchor's stance, or pass. Every action is previewed on the board and
-must be confirmed. Scouts travel quickly, Standards project broad influence,
-and a deployed Anchor is immobile but exceptionally strong.
+deploy an Anchor, or pass. Packing a deployed Anchor is free and leaves the
+normal action available. Every change is previewed on the board and must be
+confirmed. Scouts travel quickly, Standards project broad influence, and a
+deployed Anchor is immobile but exceptionally strong.
 
 Tiles belong to the team with the greater nearby influence. A piece standing in
 enemy-controlled territory is pressured; if its owner cannot relieve that

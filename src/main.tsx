@@ -123,7 +123,7 @@ const PIECE_DETAILS = {
     role: 'Mobile bulwark',
     movement: 'Move 1 packed · fixed deployed',
     influence: '3 · 2 · 1 packed / 5 · 4 · 3 · 2 · 1 deployed',
-    description: 'Deploy it to dominate a region; pack it before moving again.',
+    description: 'Deploy to dominate a region; packing is free before your action.',
   },
 } as const;
 
@@ -161,7 +161,7 @@ function actionLabel(action: GameAction | null, state: GameState): string {
   const piece = state.pieces.find(({ id }) => id === action.pieceId);
   const name = piece ? pieceName(piece) : 'Piece';
   if (action.type === 'stance') {
-    return `${action.stance === 'deployed' ? 'Deploy' : 'Pack'} ${name}`;
+    return action.stance === 'deployed' ? `Deploy ${name}` : `Pack ${name} · free, turn continues`;
   }
   return `${action.type === 'deploy' ? 'Place' : 'Move'} ${name} to ${action.to.join(', ')}`;
 }
@@ -197,7 +197,9 @@ function ControlPanel({ view, engine }: ControlPanelProps) {
     <section className={`turn-panel turn-panel--team-${state.activeTeam}`}>
       <div className="turn-panel__heading">
         <div>
-          <p className="turn-panel__eyebrow">Round {roundNumber(state)} · one action</p>
+          <p className="turn-panel__eyebrow">
+            Round {roundNumber(state)} · one action · packing is free
+          </p>
           <h2>{TEAM_NAMES[state.activeTeam]} moves</h2>
         </div>
         <span className="territory-percent">{territory}%</span>
@@ -277,7 +279,7 @@ function ControlPanel({ view, engine }: ControlPanelProps) {
             }
             type="button"
           >
-            {selected.stance === 'packed' ? 'Deploy Anchor' : 'Pack Anchor'}
+            {selected.stance === 'packed' ? 'Deploy Anchor' : 'Pack Anchor · Free'}
           </button>
         )}
 
@@ -406,7 +408,7 @@ function App() {
           <p>Field manual</p>
           <h2 id="rules-title">Win through influence</h2>
           <ol>
-            <li>Take one action, then review the projected territory and confirm.</li>
+            <li>Take one action; packing a deployed Anchor first is free.</li>
             <li>Scouts move 2; Standards spread wide influence; deployed Anchors hold ground.</li>
             <li>Relieve pressured pieces on your next action or retreat them for free.</li>
             <li>Hold at least 60% of the board through the opponent's reply to win.</li>

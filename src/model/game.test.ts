@@ -131,7 +131,7 @@ describe('game rules', () => {
     expect(getTile(state, [2, 3])).toMatchObject({ influence: [0, 0], controller: 0 });
   });
 
-  it('offers one move, deployment, stance change, or pass as a normal action', () => {
+  it('offers movement, deployment, stance changes, and passing', () => {
     const state = createInitialState();
     const actions = getLegalNormalActions(state);
 
@@ -170,6 +170,46 @@ describe('game rules', () => {
     expect(roundNumber(next)).toBe(1);
     expect(getPiece(next, action.pieceId)?.hex).toEqual(action.to);
     expect(next.lastAction).toEqual(action);
+  });
+
+  it('packs an Anchor for free so its owner can still take an action', () => {
+    const initial = createInitialState();
+    const anchor = getPiece(initial, 'violet-anchor-1')!;
+    anchor.stance = 'deployed';
+    const deployed = recalculateGameState(initial);
+    const pack = findAction(
+      deployed,
+      'stance',
+      ({ pieceId, stance }) => pieceId === anchor.id && stance === 'packed',
+    );
+
+    const packed = applyAction(deployed, pack);
+
+    expect(getPiece(packed, anchor.id)?.stance).toBe('packed');
+    expect(packed.activeTeam).toBe(0);
+    expect(packed.turn).toBe(1);
+    expect(packed.phase).toBe('action');
+    expect(
+      getLegalNormalActions(packed).some(
+        (action) => action.type === 'move' && action.pieceId === anchor.id,
+      ),
+    ).toBe(true);
+    expect(packed.lastAction).toEqual(pack);
+  });
+
+  it('spends the turn when deploying an Anchor', () => {
+    const initial = createInitialState();
+    const deploy = findAction(
+      initial,
+      'stance',
+      ({ pieceId, stance }) => pieceId === 'violet-anchor-1' && stance === 'deployed',
+    );
+
+    const deployed = applyAction(initial, deploy);
+
+    expect(getPiece(deployed, 'violet-anchor-1')?.stance).toBe('deployed');
+    expect(deployed.activeTeam).toBe(1);
+    expect(deployed.turn).toBe(2);
   });
 
   it('previews without mutating the live state', () => {
