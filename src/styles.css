@@ -29,9 +29,7 @@ button {
 .app {
   position: relative;
   isolation: isolate;
-  background:
-    radial-gradient(circle at 50% 35%, rgb(41 61 94 / 45%), transparent 48%),
-    #0b1220;
+  background: radial-gradient(circle at 50% 35%, rgb(41 61 94 / 45%), transparent 48%), #0b1220;
 }
 
 .battlefield,

@@ -1,17 +1,12 @@
 import js from '@eslint/js';
+import eslintConfigPrettier from 'eslint-config-prettier';
 import reactHooks from 'eslint-plugin-react-hooks';
 import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default [
   {
-    ignores: [
-      '.cache/**',
-      'dist/**',
-      'coverage/**',
-      'playwright-report/**',
-      'test-results/**',
-    ],
+    ignores: ['.cache/**', 'dist/**', 'coverage/**', 'playwright-report/**', 'test-results/**'],
   },
   {
     files: ['**/*.{js,jsx}'],
@@ -40,4 +35,5 @@ export default [
       '@typescript-eslint/no-unused-vars': ['error', { argsIgnorePattern: '^_' }],
     },
   },
+  eslintConfigPrettier,
 ];

@@ -3,27 +3,26 @@ export type Hex = [number, number];
 const key = ([column, row]: Hex): string => `${column},${row}`;
 
 export function getAdjacent([column, row]: Hex, validHexes?: ReadonlySet<string>): Hex[] {
-  const candidates: Hex[] = column % 2 === 0
-    ? [
-        [column - 1, row - 1],
-        [column - 1, row],
-        [column, row - 1],
-        [column, row + 1],
-        [column + 1, row - 1],
-        [column + 1, row],
-      ]
-    : [
-        [column - 1, row],
-        [column - 1, row + 1],
-        [column, row - 1],
-        [column, row + 1],
-        [column + 1, row],
-        [column + 1, row + 1],
-      ];
+  const candidates: Hex[] =
+    column % 2 === 0
+      ? [
+          [column - 1, row - 1],
+          [column - 1, row],
+          [column, row - 1],
+          [column, row + 1],
+          [column + 1, row - 1],
+          [column + 1, row],
+        ]
+      : [
+          [column - 1, row],
+          [column - 1, row + 1],
+          [column, row - 1],
+          [column, row + 1],
+          [column + 1, row],
+          [column + 1, row + 1],
+        ];
 
-  return validHexes
-    ? candidates.filter((hex) => validHexes.has(key(hex)))
-    : candidates;
+  return validHexes ? candidates.filter((hex) => validHexes.has(key(hex))) : candidates;
 }
 
 export function shortestPath(
@@ -66,10 +65,11 @@ export function distance(firstHex: Hex, secondHex: Hex): number {
   const first = toCube(firstHex);
   const second = toCube(secondHex);
   return (
-    Math.abs(first[0] - second[0])
-    + Math.abs(first[1] - second[1])
-    + Math.abs(first[2] - second[2])
-  ) / 2;
+    (Math.abs(first[0] - second[0]) +
+      Math.abs(first[1] - second[1]) +
+      Math.abs(first[2] - second[2])) /
+    2
+  );
 }
 
 export const hexKey = key;

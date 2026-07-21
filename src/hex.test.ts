@@ -9,13 +9,26 @@ describe('hex algorithms', () => {
     });
 
     it('finds a neighboring tile', () => {
-      expect(shortestPath([1, 1], [1, 2])).toEqual([[1, 1], [1, 2]]);
+      expect(shortestPath([1, 1], [1, 2])).toEqual([
+        [1, 1],
+        [1, 2],
+      ]);
     });
 
     it('finds a deterministic path over many tiles', () => {
       expect(shortestPath([1, 1], [7, 9])).toEqual([
-        [1, 1], [1, 2], [1, 3], [1, 4], [1, 5], [1, 6],
-        [2, 7], [3, 7], [4, 8], [5, 8], [6, 9], [7, 9],
+        [1, 1],
+        [1, 2],
+        [1, 3],
+        [1, 4],
+        [1, 5],
+        [1, 6],
+        [2, 7],
+        [3, 7],
+        [4, 8],
+        [5, 8],
+        [6, 9],
+        [7, 9],
       ]);
     });
 
@@ -24,11 +37,15 @@ describe('hex algorithms', () => {
     });
 
     it('stays within valid tiles', () => {
-      const validHexes = new Set([
-        '0,0', '0,1', '0,2', '1,2', '2,2', '2,1', '2,0',
-      ]);
+      const validHexes = new Set(['0,0', '0,1', '0,2', '1,2', '2,2', '2,1', '2,0']);
       expect(shortestPath([0, 0], [2, 0], validHexes)).toEqual([
-        [0, 0], [0, 1], [0, 2], [1, 2], [2, 2], [2, 1], [2, 0],
+        [0, 0],
+        [0, 1],
+        [0, 2],
+        [1, 2],
+        [2, 2],
+        [2, 1],
+        [2, 0],
       ]);
     });
 

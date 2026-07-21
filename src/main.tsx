@@ -21,7 +21,9 @@ function Score({ scores }: ScoreProps) {
   return (
     <section className="score" aria-label="Territory score">
       <span className="score__team score__team--violet">{scores[0]}</span>
-      <span className="score__neutral" title="Neutral tiles">{scores[2]}</span>
+      <span className="score__neutral" title="Neutral tiles">
+        {scores[2]}
+      </span>
       <span className="score__team score__team--crimson">{scores[1]}</span>
     </section>
   );
@@ -34,10 +36,7 @@ interface TurnPanelProps {
 
 function TurnPanel({ game, onReset }: TurnPanelProps) {
   const moveMarkers = Array.from({ length: 4 }, (_, index) => (
-    <span
-      className={index < game.movesRemaining ? 'move move--ready' : 'move'}
-      key={index}
-    />
+    <span className={index < game.movesRemaining ? 'move move--ready' : 'move'} key={index} />
   ));
 
   return (
@@ -48,11 +47,11 @@ function TurnPanel({ game, onReset }: TurnPanelProps) {
         {moveMarkers}
       </div>
       <p className="turn-panel__hint">
-        {game.hasSelection
-          ? 'Choose a highlighted tile to move.'
-          : 'Choose one of your pieces.'}
+        {game.hasSelection ? 'Choose a highlighted tile to move.' : 'Choose one of your pieces.'}
       </p>
-      <button type="button" onClick={onReset}>New match</button>
+      <button type="button" onClick={onReset}>
+        New match
+      </button>
     </section>
   );
 }
@@ -91,7 +90,9 @@ function App() {
         </div>
       )}
       <header className="brand">
-        <span className="brand__mark" aria-hidden="true">⬡</span>
+        <span className="brand__mark" aria-hidden="true">
+          ⬡
+        </span>
         <div>
           <h1>HexWar</h1>
           <p>Claim the field</p>

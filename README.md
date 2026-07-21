@@ -6,13 +6,13 @@ Three.js, Vite, and Vitest.
 
 ## Requirements
 
-- Node.js 20.19 or newer
-- npm 10 or newer
+- Node.js 22.12 or newer (the exact development version is in `.nvmrc`)
+- npm 10.9 or newer
 
 ## Development
 
 ```sh
-npm install
+npm ci
 npm run e2e:install
 npm run dev
 ```
@@ -26,9 +26,14 @@ Vite prints the local development URL, normally <http://localhost:5173>.
 - `npm run test:e2e` launches an isolated headless browser and verifies WebGL rendering.
 - `npm run e2e:install` installs Playwright's browser into the project cache once.
 - `npm run lint` checks the TypeScript, JavaScript, and React components.
+- `npm run format` formats supported project files with Prettier.
 - `npm run typecheck` runs the strict TypeScript compiler without emitting files.
 - `npm run build` creates a production build in `dist/`.
-- `npm run check` runs lint, tests, and the production build.
+- `npm run check:quick` runs formatting, lint, type checking, and unit tests.
+- `npm run check` also builds and verifies the app in Playwright.
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) for the development workflow and
+project boundaries.
 
 ## How to play
 

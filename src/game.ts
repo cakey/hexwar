@@ -123,8 +123,8 @@ class Tile {
       outOfRange: COLORS.outOfRange,
     };
     const teamColors: [number, number] = [COLORS.violet, COLORS.crimson];
-    const color = previewColors[this.preview]
-      ?? (this.team === null ? COLORS.base : teamColors[this.team]);
+    const color =
+      previewColors[this.preview] ?? (this.team === null ? COLORS.base : teamColors[this.team]);
     this.material.color.setHex(color);
   }
 }
@@ -288,8 +288,12 @@ class Game {
     this.totalInfluence = [0, 0, 0];
 
     const startingPlayers: Array<[Hex, Team]> = [
-      [[0, 1], 0], [[0, 3], 0], [[0, 5], 0],
-      [[12, 1], 1], [[12, 3], 1], [[12, 5], 1],
+      [[0, 1], 0],
+      [[0, 3], 0],
+      [[0, 5], 0],
+      [[12, 1], 1],
+      [[12, 3], 1],
+      [[12, 5], 1],
     ];
     for (const [hex, team] of startingPlayers) {
       this.players.push(new Player(this.scene, hex, team));
@@ -342,11 +346,7 @@ class Game {
       return;
     }
 
-    const path = shortestPath(
-      this.selectedPlayer.hex,
-      selectedHex,
-      this.availableHexes(),
-    );
+    const path = shortestPath(this.selectedPlayer.hex, selectedHex, this.availableHexes());
     if (!path || path.length - 1 > this.movesRemaining) return;
     const moveCost = path.length - 1;
 
