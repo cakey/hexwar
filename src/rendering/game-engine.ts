@@ -93,7 +93,7 @@ function hexToWorld([column, row]: Hex): { x: number; y: number } {
   };
 }
 
-function boardMetrics(board: Hex[]): { center: THREE.Vector3; width: number; height: number } {
+function boardMetrics(board: Hex[]): { center: THREE.Vector3; width: number } {
   const points = board.map(hexToWorld);
   const minimumX = Math.min(...points.map(({ x }) => x)) - HALF_EDGE * 2;
   const maximumX = Math.max(...points.map(({ x }) => x)) + HALF_EDGE * 2;
@@ -102,7 +102,6 @@ function boardMetrics(board: Hex[]): { center: THREE.Vector3; width: number; hei
   return {
     center: new THREE.Vector3((minimumX + maximumX) / 2, (minimumY + maximumY) / 2, 0),
     width: maximumX - minimumX,
-    height: maximumY - minimumY,
   };
 }
 
@@ -225,13 +224,9 @@ class Tile {
 class TileManager {
   readonly group = new THREE.Group();
   readonly tiles = new Map<string, Tile>();
-  private readonly environmentGeometries: THREE.BufferGeometry[] = [];
-  private readonly environmentMaterials: THREE.Material[] = [];
 
   constructor(scene: THREE.Scene, boardHexes: Hex[]) {
     this.group.name = 'battlefield';
-    const metrics = boardMetrics(boardHexes);
-    this.addBattlefieldFoundation(metrics);
     const geometry = makeHexGeometry();
     for (const hex of boardHexes) {
       const tile = new Tile(hex, geometry);
@@ -239,74 +234,6 @@ class TileManager {
       this.group.add(tile.mesh);
     }
     scene.add(this.group);
-  }
-
-  private addBattlefieldFoundation(metrics: {
-    center: THREE.Vector3;
-    width: number;
-    height: number;
-  }): void {
-    const addMesh = (
-      geometry: THREE.BufferGeometry,
-      material: THREE.Material,
-      position: THREE.Vector3,
-    ): THREE.Mesh => {
-      this.environmentGeometries.push(geometry);
-      this.environmentMaterials.push(material);
-      const mesh = new THREE.Mesh(geometry, material);
-      mesh.position.copy(position);
-      mesh.receiveShadow = true;
-      mesh.castShadow = true;
-      this.group.add(mesh);
-      return mesh;
-    };
-
-    const plinthMaterial = new THREE.MeshStandardMaterial({
-      color: 0x10192a,
-      roughness: 0.62,
-      metalness: 0.35,
-    });
-    addMesh(
-      new THREE.BoxGeometry(metrics.width + 150, metrics.height + 150, 22),
-      plinthMaterial,
-      new THREE.Vector3(metrics.center.x, metrics.center.y, -19),
-    );
-    const insetMaterial = new THREE.MeshStandardMaterial({
-      color: 0x18243a,
-      roughness: 0.74,
-      metalness: 0.18,
-    });
-    addMesh(
-      new THREE.BoxGeometry(metrics.width + 70, metrics.height + 70, 8),
-      insetMaterial,
-      new THREE.Vector3(metrics.center.x, metrics.center.y, -7),
-    );
-
-    for (const team of [0, 1] as const) {
-      const color = team === 0 ? COLORS.violet : COLORS.crimson;
-      const edgeX = metrics.center.x + (team === 0 ? -1 : 1) * (metrics.width / 2 + 45);
-      const railMaterial = new THREE.MeshStandardMaterial({
-        color,
-        emissive: color,
-        emissiveIntensity: 0.38,
-        roughness: 0.38,
-        metalness: 0.5,
-      });
-      addMesh(
-        new THREE.BoxGeometry(16, metrics.height - 20, 18),
-        railMaterial,
-        new THREE.Vector3(edgeX, metrics.center.y, -1),
-      );
-      for (const offset of [-0.36, 0, 0.36]) {
-        const beaconGeometry = new THREE.CylinderGeometry(13, 18, 42, 6);
-        beaconGeometry.rotateX(Math.PI / 2);
-        addMesh(
-          beaconGeometry,
-          railMaterial,
-          new THREE.Vector3(edgeX, metrics.center.y + metrics.height * offset, 18),
-        );
-      }
-    }
   }
 
   intersect(raycaster: THREE.Raycaster): Hex | undefined {
@@ -348,8 +275,6 @@ class TileManager {
     const firstTile = this.tiles.values().next().value as Tile | undefined;
     for (const tile of this.tiles.values()) tile.dispose();
     firstTile?.mesh.geometry.dispose();
-    for (const geometry of this.environmentGeometries) geometry.dispose();
-    for (const material of this.environmentMaterials) material.dispose();
     scene.remove(this.group);
   }
 }
@@ -361,6 +286,7 @@ interface PieceModel {
   geometries: THREE.BufferGeometry[];
   statusRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
   deployedRings: THREE.Group;
+  stanceParts?: THREE.Group;
 }
 
 function upright<T extends THREE.BufferGeometry>(geometry: T): T {
@@ -377,34 +303,44 @@ function createPieceModel(piece: PieceState): PieceModel {
   const teamDark = piece.team === 0 ? COLORS.violetDark : COLORS.crimsonDark;
   const primary = new THREE.MeshStandardMaterial({
     color: teamColor,
-    roughness: 0.34,
-    metalness: 0.32,
+    roughness: 0.7,
+    metalness: 0.02,
     side: THREE.DoubleSide,
   });
   const secondary = new THREE.MeshStandardMaterial({
     color: teamDark,
-    roughness: 0.48,
-    metalness: 0.42,
+    roughness: 0.78,
+    metalness: 0.04,
   });
   const metal = new THREE.MeshStandardMaterial({
-    color: 0xd7e2ef,
-    roughness: 0.28,
-    metalness: 0.76,
+    color: 0xe5eaf0,
+    roughness: 0.58,
+    metalness: 0.16,
   });
   const glow = new THREE.MeshStandardMaterial({
-    color: teamColor,
+    color: 0x172033,
     emissive: teamColor,
-    emissiveIntensity: 0.65,
-    roughness: 0.2,
-    metalness: 0.18,
+    emissiveIntensity: 0.42,
+    roughness: 0.38,
+    metalness: 0.08,
   });
-  const materials = [primary, secondary, metal, glow];
+  const clothColor = new THREE.Color(teamColor).lerp(new THREE.Color(0xffffff), 0.3);
+  const cloth = new THREE.MeshStandardMaterial({
+    color: clothColor,
+    emissive: teamColor,
+    emissiveIntensity: 0.12,
+    roughness: 0.92,
+    metalness: 0,
+    side: THREE.DoubleSide,
+  });
+  const materials = [primary, secondary, metal, glow, cloth];
   const geometries: THREE.BufferGeometry[] = [];
   const add = (
     geometry: THREE.BufferGeometry,
     material: THREE.MeshStandardMaterial,
     position: [number, number, number],
     rotationZ = 0,
+    parent: THREE.Group = body,
   ): THREE.Mesh => {
     geometries.push(geometry);
     const mesh = new THREE.Mesh(geometry, material);
@@ -412,41 +348,87 @@ function createPieceModel(piece: PieceState): PieceModel {
     mesh.rotation.z = rotationZ;
     mesh.castShadow = true;
     mesh.receiveShadow = true;
-    body.add(mesh);
+    parent.add(mesh);
+    return mesh;
+  };
+  const addLimb = (
+    from: THREE.Vector3,
+    to: THREE.Vector3,
+    radius: number,
+    material: THREE.MeshStandardMaterial,
+    parent: THREE.Group = body,
+  ): THREE.Mesh => {
+    const direction = to.clone().sub(from);
+    const mesh = add(
+      new THREE.CylinderGeometry(radius, radius * 1.06, direction.length(), 16),
+      material,
+      [0, 0, 0],
+      0,
+      parent,
+    );
+    mesh.position.copy(from).add(to).multiplyScalar(0.5);
+    mesh.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), direction.clone().normalize());
     return mesh;
   };
 
-  add(upright(new THREE.CylinderGeometry(24, 27, 9, 8)), secondary, [0, 0, 5]);
-  add(new THREE.TorusGeometry(20, 2.5, 6, 24), metal, [0, 0, 10]);
+  add(upright(new THREE.CylinderGeometry(22, 26, 8, 32)), secondary, [0, 0, 4]);
+  add(new THREE.TorusGeometry(20, 2, 10, 48), primary, [0, 0, 9]);
+
+  let stanceParts: THREE.Group | undefined;
 
   if (piece.type === 'scout') {
-    add(upright(new THREE.ConeGeometry(13, 38, 6)), primary, [0, 0, 29]);
-    add(upright(new THREE.OctahedronGeometry(10, 0)), glow, [0, 0, 53]);
-    for (const direction of [-1, 1]) {
-      const fin = add(new THREE.BoxGeometry(22, 5, 4), secondary, [direction * 12, -2, 25]);
-      fin.rotation.y = direction * 0.42;
-      fin.rotation.z = direction * -0.34;
-    }
-    add(new THREE.BoxGeometry(5, 28, 5), metal, [0, -10, 24]);
+    addLimb(new THREE.Vector3(-6, -4, 9), new THREE.Vector3(-5, -3, 27), 4, secondary);
+    addLimb(new THREE.Vector3(6, 4, 9), new THREE.Vector3(4, 3, 28), 4, secondary);
+    const torso = add(upright(new THREE.CapsuleGeometry(10, 18, 8, 20)), primary, [2, 0, 38]);
+    torso.rotation.y = -0.12;
+    add(upright(new THREE.SphereGeometry(10, 24, 16)), metal, [7, 0, 58]);
+    add(new THREE.BoxGeometry(7, 18, 7), glow, [14, 0, 59]);
+    add(new THREE.BoxGeometry(9, 16, 20), secondary, [-8, 0, 40]);
+    addLimb(new THREE.Vector3(4, -8, 45), new THREE.Vector3(22, -8, 40), 3.2, primary);
+    addLimb(new THREE.Vector3(4, 8, 44), new THREE.Vector3(15, 10, 33), 3.2, primary);
   } else if (piece.type === 'standard') {
-    add(upright(new THREE.CylinderGeometry(4, 5, 63, 8)), metal, [0, 0, 39]);
-    add(upright(new THREE.SphereGeometry(7, 8, 6)), glow, [0, 0, 73]);
+    addLimb(new THREE.Vector3(-5, -3, 9), new THREE.Vector3(-4, -2, 27), 4.2, secondary);
+    addLimb(new THREE.Vector3(6, 3, 9), new THREE.Vector3(5, 2, 27), 4.2, secondary);
+    add(upright(new THREE.CapsuleGeometry(10, 19, 8, 20)), primary, [1, 0, 39]);
+    add(upright(new THREE.SphereGeometry(9, 24, 16)), metal, [1, 0, 59]);
+    add(new THREE.BoxGeometry(5, 16, 5), glow, [8, 0, 59]);
+    addLimb(new THREE.Vector3(-4, -8, 46), new THREE.Vector3(-15, -5, 39), 3.2, primary);
+    addLimb(new THREE.Vector3(5, 7, 46), new THREE.Vector3(-14, 5, 52), 3.2, primary);
+    addLimb(new THREE.Vector3(-16, 0, 12), new THREE.Vector3(-16, 0, 82), 2.8, metal);
+    add(upright(new THREE.SphereGeometry(5, 20, 12)), metal, [-16, 0, 85]);
     const flagShape = new THREE.Shape();
     flagShape.moveTo(0, 0);
-    flagShape.lineTo(37, 0);
-    flagShape.lineTo(29, 13);
-    flagShape.lineTo(37, 26);
-    flagShape.lineTo(0, 26);
+    flagShape.bezierCurveTo(15, 4, 30, -3, 46, 2);
+    flagShape.lineTo(40, 31);
+    flagShape.bezierCurveTo(27, 25, 13, 34, 0, 27);
     flagShape.closePath();
-    add(upright(new THREE.ShapeGeometry(flagShape)), primary, [2, 0, 43]);
-    add(new THREE.BoxGeometry(5, 5, 25), secondary, [0, 0, 51]);
+    add(upright(new THREE.ShapeGeometry(flagShape)), cloth, [-13, 0, 54]);
   } else {
-    add(upright(new THREE.CylinderGeometry(18, 22, 28, 8)), secondary, [0, 0, 24]);
-    add(upright(new THREE.OctahedronGeometry(14, 0)), glow, [0, 0, 46]);
-    for (let arm = 0; arm < 3; arm += 1) {
-      add(new THREE.BoxGeometry(54, 10, 9), primary, [0, 0, 17], (Math.PI / 3) * arm);
+    addLimb(new THREE.Vector3(0, 0, 18), new THREE.Vector3(0, 0, 67), 5, primary);
+    add(new THREE.TorusGeometry(10, 4, 12, 40), primary, [0, 0, 74]);
+    const stock = add(new THREE.CapsuleGeometry(4, 38, 8, 16), metal, [0, 0, 53]);
+    stock.rotation.z = Math.PI / 2;
+    stanceParts = new THREE.Group();
+    body.add(stanceParts);
+    const curvedArms = add(
+      new THREE.TorusGeometry(27, 5, 12, 48, Math.PI),
+      primary,
+      [0, 0, 35],
+      0,
+      stanceParts,
+    );
+    curvedArms.rotation.x = -Math.PI / 2;
+    for (const direction of [-1, 1]) {
+      const fluke = add(
+        upright(new THREE.ConeGeometry(8, 17, 20)),
+        primary,
+        [direction * 27, 0, 39],
+        0,
+        stanceParts,
+      );
+      fluke.rotation.y = direction * 0.65;
     }
-    add(new THREE.TorusGeometry(26, 4, 6, 24), metal, [0, 0, 15]);
+    add(upright(new THREE.SphereGeometry(7, 24, 16)), glow, [0, 0, 23]);
   }
 
   const statusMaterial = new THREE.MeshBasicMaterial({
@@ -463,20 +445,20 @@ function createPieceModel(piece: PieceState): PieceModel {
   root.add(statusRing);
 
   const deployedRings = new THREE.Group();
-  for (const radius of [34, 43]) {
+  for (const radius of [34, 42]) {
     const material = new THREE.MeshBasicMaterial({
       color: teamColor,
       depthWrite: false,
       opacity: radius === 34 ? 0.5 : 0.24,
       transparent: true,
     });
-    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 1.8, 5, 40), material);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 1.3, 8, 64), material);
     ring.position.z = 3;
     deployedRings.add(ring);
   }
   deployedRings.visible = false;
   root.add(deployedRings);
-  return { root, body, materials, geometries, statusRing, deployedRings };
+  return { root, body, materials, geometries, statusRing, deployedRings, stanceParts };
 }
 
 class PlayerPiece {
@@ -507,6 +489,9 @@ class PlayerPiece {
     this.root.scale.setScalar(1.45);
     const anchorScale = piece.type === 'anchor' && piece.stance === 'deployed' ? 1.16 : 1;
     this.model.body.scale.set(anchorScale, anchorScale, anchorScale);
+    if (this.model.stanceParts) {
+      this.model.stanceParts.scale.x = piece.stance === 'deployed' ? 1.18 : 0.72;
+    }
     this.model.deployedRings.visible = piece.type === 'anchor' && piece.stance === 'deployed';
     this.selected = selected;
     this.pressured = piece.pressured;
@@ -525,8 +510,10 @@ class PlayerPiece {
         : selected
           ? 0.18
           : material === this.model.materials[3]
-            ? 0.65
-            : 0;
+            ? 0.5
+            : material === this.model.materials[4]
+              ? 0.12
+              : 0;
     }
   }
 
