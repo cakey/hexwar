@@ -93,7 +93,7 @@ function hexToWorld([column, row]: Hex): { x: number; y: number } {
   };
 }
 
-function boardMetrics(board: Hex[]): { center: THREE.Vector3; width: number } {
+function boardMetrics(board: Hex[]): { center: THREE.Vector3; width: number; height: number } {
   const points = board.map(hexToWorld);
   const minimumX = Math.min(...points.map(({ x }) => x)) - HALF_EDGE * 2;
   const maximumX = Math.max(...points.map(({ x }) => x)) + HALF_EDGE * 2;
@@ -102,6 +102,7 @@ function boardMetrics(board: Hex[]): { center: THREE.Vector3; width: number } {
   return {
     center: new THREE.Vector3((minimumX + maximumX) / 2, (minimumY + maximumY) / 2, 0),
     width: maximumX - minimumX,
+    height: maximumY - minimumY,
   };
 }
 
@@ -128,6 +129,8 @@ class Tile {
       metalness: 0.04,
     });
     this.mesh = new THREE.Mesh(geometry, this.material);
+    this.mesh.castShadow = false;
+    this.mesh.receiveShadow = true;
     const { x, y } = hexToWorld(hex);
     this.mesh.position.set(x, y, 0);
     this.mesh.userData.tile = this;
@@ -188,12 +191,18 @@ class Tile {
   }
 
   private updateColor(): void {
+    this.material.emissive.setHex(0x000000);
+    this.material.emissiveIntensity = 0;
     if (this.highlight === 'hovered') {
       this.material.color.setHex(COLORS.highlight);
+      this.material.emissive.setHex(0x9a6400);
+      this.material.emissiveIntensity = 0.45;
       return;
     }
     if (this.highlight === 'available') {
       this.material.color.setHex(COLORS.available);
+      this.material.emissive.setHex(0x0b6b3e);
+      this.material.emissiveIntensity = 0.24;
       return;
     }
     if (this.state.controller !== null) {
@@ -205,6 +214,8 @@ class Tile {
         this.state.controller === 0 ? COLORS.violet : COLORS.crimson,
       );
       this.material.color.setHex(COLORS.neutral).lerp(teamColor, strength);
+      this.material.emissive.copy(teamColor);
+      this.material.emissiveIntensity = 0.035 + strength * 0.035;
     } else if (this.state.influence[0] + this.state.influence[1] > 0) {
       this.material.color.setHex(COLORS.contested);
     } else this.material.color.setHex(COLORS.neutral);
@@ -214,9 +225,13 @@ class Tile {
 class TileManager {
   readonly group = new THREE.Group();
   readonly tiles = new Map<string, Tile>();
+  private readonly environmentGeometries: THREE.BufferGeometry[] = [];
+  private readonly environmentMaterials: THREE.Material[] = [];
 
   constructor(scene: THREE.Scene, boardHexes: Hex[]) {
     this.group.name = 'battlefield';
+    const metrics = boardMetrics(boardHexes);
+    this.addBattlefieldFoundation(metrics);
     const geometry = makeHexGeometry();
     for (const hex of boardHexes) {
       const tile = new Tile(hex, geometry);
@@ -224,6 +239,74 @@ class TileManager {
       this.group.add(tile.mesh);
     }
     scene.add(this.group);
+  }
+
+  private addBattlefieldFoundation(metrics: {
+    center: THREE.Vector3;
+    width: number;
+    height: number;
+  }): void {
+    const addMesh = (
+      geometry: THREE.BufferGeometry,
+      material: THREE.Material,
+      position: THREE.Vector3,
+    ): THREE.Mesh => {
+      this.environmentGeometries.push(geometry);
+      this.environmentMaterials.push(material);
+      const mesh = new THREE.Mesh(geometry, material);
+      mesh.position.copy(position);
+      mesh.receiveShadow = true;
+      mesh.castShadow = true;
+      this.group.add(mesh);
+      return mesh;
+    };
+
+    const plinthMaterial = new THREE.MeshStandardMaterial({
+      color: 0x10192a,
+      roughness: 0.62,
+      metalness: 0.35,
+    });
+    addMesh(
+      new THREE.BoxGeometry(metrics.width + 150, metrics.height + 150, 22),
+      plinthMaterial,
+      new THREE.Vector3(metrics.center.x, metrics.center.y, -19),
+    );
+    const insetMaterial = new THREE.MeshStandardMaterial({
+      color: 0x18243a,
+      roughness: 0.74,
+      metalness: 0.18,
+    });
+    addMesh(
+      new THREE.BoxGeometry(metrics.width + 70, metrics.height + 70, 8),
+      insetMaterial,
+      new THREE.Vector3(metrics.center.x, metrics.center.y, -7),
+    );
+
+    for (const team of [0, 1] as const) {
+      const color = team === 0 ? COLORS.violet : COLORS.crimson;
+      const edgeX = metrics.center.x + (team === 0 ? -1 : 1) * (metrics.width / 2 + 45);
+      const railMaterial = new THREE.MeshStandardMaterial({
+        color,
+        emissive: color,
+        emissiveIntensity: 0.38,
+        roughness: 0.38,
+        metalness: 0.5,
+      });
+      addMesh(
+        new THREE.BoxGeometry(16, metrics.height - 20, 18),
+        railMaterial,
+        new THREE.Vector3(edgeX, metrics.center.y, -1),
+      );
+      for (const offset of [-0.36, 0, 0.36]) {
+        const beaconGeometry = new THREE.CylinderGeometry(13, 18, 42, 6);
+        beaconGeometry.rotateX(Math.PI / 2);
+        addMesh(
+          beaconGeometry,
+          railMaterial,
+          new THREE.Vector3(edgeX, metrics.center.y + metrics.height * offset, 18),
+        );
+      }
+    }
   }
 
   intersect(raycaster: THREE.Raycaster): Hex | undefined {
@@ -265,51 +348,186 @@ class TileManager {
     const firstTile = this.tiles.values().next().value as Tile | undefined;
     for (const tile of this.tiles.values()) tile.dispose();
     firstTile?.mesh.geometry.dispose();
+    for (const geometry of this.environmentGeometries) geometry.dispose();
+    for (const material of this.environmentMaterials) material.dispose();
     scene.remove(this.group);
   }
 }
 
-function geometryFor(piece: PieceState): THREE.BufferGeometry {
-  if (piece.type === 'scout') return new THREE.ConeGeometry(21, 62, 6);
-  if (piece.type === 'anchor') return new THREE.CylinderGeometry(29, 34, 52, 6);
-  return new THREE.CylinderGeometry(10, 28, 76, 6);
+interface PieceModel {
+  root: THREE.Group;
+  body: THREE.Group;
+  materials: THREE.MeshStandardMaterial[];
+  geometries: THREE.BufferGeometry[];
+  statusRing: THREE.Mesh<THREE.RingGeometry, THREE.MeshBasicMaterial>;
+  deployedRings: THREE.Group;
+}
+
+function upright<T extends THREE.BufferGeometry>(geometry: T): T {
+  geometry.rotateX(Math.PI / 2);
+  return geometry;
+}
+
+function createPieceModel(piece: PieceState): PieceModel {
+  const root = new THREE.Group();
+  const body = new THREE.Group();
+  body.rotation.z = piece.team === 0 ? 0 : Math.PI;
+  root.add(body);
+  const teamColor = piece.team === 0 ? COLORS.violet : COLORS.crimson;
+  const teamDark = piece.team === 0 ? COLORS.violetDark : COLORS.crimsonDark;
+  const primary = new THREE.MeshStandardMaterial({
+    color: teamColor,
+    roughness: 0.34,
+    metalness: 0.32,
+    side: THREE.DoubleSide,
+  });
+  const secondary = new THREE.MeshStandardMaterial({
+    color: teamDark,
+    roughness: 0.48,
+    metalness: 0.42,
+  });
+  const metal = new THREE.MeshStandardMaterial({
+    color: 0xd7e2ef,
+    roughness: 0.28,
+    metalness: 0.76,
+  });
+  const glow = new THREE.MeshStandardMaterial({
+    color: teamColor,
+    emissive: teamColor,
+    emissiveIntensity: 0.65,
+    roughness: 0.2,
+    metalness: 0.18,
+  });
+  const materials = [primary, secondary, metal, glow];
+  const geometries: THREE.BufferGeometry[] = [];
+  const add = (
+    geometry: THREE.BufferGeometry,
+    material: THREE.MeshStandardMaterial,
+    position: [number, number, number],
+    rotationZ = 0,
+  ): THREE.Mesh => {
+    geometries.push(geometry);
+    const mesh = new THREE.Mesh(geometry, material);
+    mesh.position.set(...position);
+    mesh.rotation.z = rotationZ;
+    mesh.castShadow = true;
+    mesh.receiveShadow = true;
+    body.add(mesh);
+    return mesh;
+  };
+
+  add(upright(new THREE.CylinderGeometry(24, 27, 9, 8)), secondary, [0, 0, 5]);
+  add(new THREE.TorusGeometry(20, 2.5, 6, 24), metal, [0, 0, 10]);
+
+  if (piece.type === 'scout') {
+    add(upright(new THREE.ConeGeometry(13, 38, 6)), primary, [0, 0, 29]);
+    add(upright(new THREE.OctahedronGeometry(10, 0)), glow, [0, 0, 53]);
+    for (const direction of [-1, 1]) {
+      const fin = add(new THREE.BoxGeometry(22, 5, 4), secondary, [direction * 12, -2, 25]);
+      fin.rotation.y = direction * 0.42;
+      fin.rotation.z = direction * -0.34;
+    }
+    add(new THREE.BoxGeometry(5, 28, 5), metal, [0, -10, 24]);
+  } else if (piece.type === 'standard') {
+    add(upright(new THREE.CylinderGeometry(4, 5, 63, 8)), metal, [0, 0, 39]);
+    add(upright(new THREE.SphereGeometry(7, 8, 6)), glow, [0, 0, 73]);
+    const flagShape = new THREE.Shape();
+    flagShape.moveTo(0, 0);
+    flagShape.lineTo(37, 0);
+    flagShape.lineTo(29, 13);
+    flagShape.lineTo(37, 26);
+    flagShape.lineTo(0, 26);
+    flagShape.closePath();
+    add(upright(new THREE.ShapeGeometry(flagShape)), primary, [2, 0, 43]);
+    add(new THREE.BoxGeometry(5, 5, 25), secondary, [0, 0, 51]);
+  } else {
+    add(upright(new THREE.CylinderGeometry(18, 22, 28, 8)), secondary, [0, 0, 24]);
+    add(upright(new THREE.OctahedronGeometry(14, 0)), glow, [0, 0, 46]);
+    for (let arm = 0; arm < 3; arm += 1) {
+      add(new THREE.BoxGeometry(54, 10, 9), primary, [0, 0, 17], (Math.PI / 3) * arm);
+    }
+    add(new THREE.TorusGeometry(26, 4, 6, 24), metal, [0, 0, 15]);
+  }
+
+  const statusMaterial = new THREE.MeshBasicMaterial({
+    color: COLORS.selected,
+    depthWrite: false,
+    opacity: 0.82,
+    side: THREE.DoubleSide,
+    transparent: true,
+  });
+  const statusRing = new THREE.Mesh(new THREE.RingGeometry(31, 36, 40), statusMaterial);
+  statusRing.position.z = 2;
+  statusRing.renderOrder = 2;
+  statusRing.visible = false;
+  root.add(statusRing);
+
+  const deployedRings = new THREE.Group();
+  for (const radius of [34, 43]) {
+    const material = new THREE.MeshBasicMaterial({
+      color: teamColor,
+      depthWrite: false,
+      opacity: radius === 34 ? 0.5 : 0.24,
+      transparent: true,
+    });
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(radius, 1.8, 5, 40), material);
+    ring.position.z = 3;
+    deployedRings.add(ring);
+  }
+  deployedRings.visible = false;
+  root.add(deployedRings);
+  return { root, body, materials, geometries, statusRing, deployedRings };
 }
 
 class PlayerPiece {
   readonly id: string;
-  readonly material: THREE.MeshStandardMaterial;
-  readonly mesh: THREE.Mesh<THREE.BufferGeometry, THREE.MeshStandardMaterial>;
+  readonly root: THREE.Group;
+  private readonly model: PieceModel;
   private segments: Array<{ from: Hex; to: Hex }> = [];
   private segmentProgress = 0;
-  private baseHeight = TILE_HEIGHT + 38;
+  private pulseTime = 0;
+  private baseHeight = TILE_HEIGHT + 2;
+  private selected = false;
+  private pressured = false;
 
   constructor(scene: THREE.Scene, piece: PieceState) {
     this.id = piece.id;
-    this.material = new THREE.MeshStandardMaterial({
-      color: piece.team === 0 ? COLORS.violetDark : COLORS.crimsonDark,
-      roughness: 0.45,
-      metalness: 0.12,
-    });
-    this.mesh = new THREE.Mesh(geometryFor(piece), this.material);
-    this.mesh.rotation.x = Math.PI / 2;
-    scene.add(this.mesh);
+    this.model = createPieceModel(piece);
+    this.root = this.model.root;
+    scene.add(this.root);
     this.sync(piece, false, false);
   }
 
   sync(piece: PieceState, selected: boolean, previewed: boolean): void {
-    this.mesh.visible = piece.status === 'deployed' && piece.hex !== null;
-    if (!this.mesh.visible || !piece.hex) return;
+    this.root.visible = piece.status === 'deployed' && piece.hex !== null;
+    if (!this.root.visible || !piece.hex) return;
     if (!this.isMoving) this.setWorldPosition(piece.hex);
-    this.baseHeight = TILE_HEIGHT + (piece.type === 'anchor' ? 26 : 38);
-    this.mesh.position.z = this.baseHeight;
-    const anchorScale = piece.type === 'anchor' && piece.stance === 'deployed' ? 1.35 : 1;
-    this.mesh.scale.set(anchorScale, anchorScale, anchorScale);
-    this.material.transparent = previewed;
-    this.material.opacity = previewed ? 0.62 : 1;
-    this.material.emissive.setHex(
-      piece.pressured ? COLORS.pressure : selected ? COLORS.selected : 0x000000,
+    this.baseHeight = TILE_HEIGHT + 2;
+    this.root.position.z = this.baseHeight;
+    this.root.scale.setScalar(1.45);
+    const anchorScale = piece.type === 'anchor' && piece.stance === 'deployed' ? 1.16 : 1;
+    this.model.body.scale.set(anchorScale, anchorScale, anchorScale);
+    this.model.deployedRings.visible = piece.type === 'anchor' && piece.stance === 'deployed';
+    this.selected = selected;
+    this.pressured = piece.pressured;
+    this.model.statusRing.visible = selected || piece.pressured;
+    this.model.statusRing.material.color.setHex(
+      piece.pressured ? COLORS.pressure : COLORS.selected,
     );
-    this.material.emissiveIntensity = piece.pressured ? 0.5 : selected ? 0.55 : 0;
+    for (const material of this.model.materials) {
+      material.transparent = previewed;
+      material.opacity = previewed ? 0.58 : 1;
+      material.emissive.setHex(
+        piece.pressured ? COLORS.pressure : selected ? COLORS.selected : material.color.getHex(),
+      );
+      material.emissiveIntensity = piece.pressured
+        ? 0.32
+        : selected
+          ? 0.18
+          : material === this.model.materials[3]
+            ? 0.65
+            : 0;
+    }
   }
 
   animate(from: Hex, to: Hex): void {
@@ -323,33 +541,52 @@ class PlayerPiece {
   }
 
   update(deltaSeconds: number): void {
-    if (!this.mesh.visible || this.segments.length === 0) return;
+    if (!this.root.visible) return;
+    this.pulseTime += deltaSeconds;
+    if (this.model.statusRing.visible) {
+      const pulse = 1 + Math.sin(this.pulseTime * 5) * (this.pressured ? 0.09 : 0.05);
+      this.model.statusRing.scale.setScalar(pulse);
+      this.model.statusRing.material.opacity = this.pressured ? 0.9 : this.selected ? 0.72 : 0;
+    }
+    if (this.model.deployedRings.visible) {
+      this.model.deployedRings.rotation.z += deltaSeconds * 0.35;
+      this.model.deployedRings.scale.setScalar(1 + Math.sin(this.pulseTime * 2) * 0.04);
+    }
+    if (this.segments.length === 0) return;
     this.segmentProgress += deltaSeconds / 0.2;
     const segment = this.segments[0];
     const start = hexToWorld(segment.from);
     const end = hexToWorld(segment.to);
     const progress = Math.min(this.segmentProgress, 1);
-    this.mesh.position.x = THREE.MathUtils.lerp(start.x, end.x, progress);
-    this.mesh.position.y = THREE.MathUtils.lerp(start.y, end.y, progress);
-    this.mesh.position.z = this.baseHeight + Math.sin(progress * Math.PI) * 20;
+    this.root.position.x = THREE.MathUtils.lerp(start.x, end.x, progress);
+    this.root.position.y = THREE.MathUtils.lerp(start.y, end.y, progress);
+    this.root.position.z = this.baseHeight + Math.sin(progress * Math.PI) * 20;
     if (this.segmentProgress >= 1) {
       this.setWorldPosition(segment.to);
-      this.mesh.position.z = this.baseHeight;
+      this.root.position.z = this.baseHeight;
       this.segments.shift();
       this.segmentProgress = 0;
     }
   }
 
   dispose(scene: THREE.Scene): void {
-    scene.remove(this.mesh);
-    this.mesh.geometry.dispose();
-    this.material.dispose();
+    scene.remove(this.root);
+    for (const geometry of this.model.geometries) geometry.dispose();
+    for (const material of this.model.materials) material.dispose();
+    this.model.statusRing.geometry.dispose();
+    this.model.statusRing.material.dispose();
+    for (const ring of this.model.deployedRings.children) {
+      if (ring instanceof THREE.Mesh) {
+        ring.geometry.dispose();
+        if (ring.material instanceof THREE.Material) ring.material.dispose();
+      }
+    }
   }
 
   private setWorldPosition(hex: Hex): void {
     const { x, y } = hexToWorld(hex);
-    this.mesh.position.x = x;
-    this.mesh.position.y = y;
+    this.root.position.x = x;
+    this.root.position.y = y;
   }
 }
 
@@ -409,13 +646,29 @@ export class GameEngine {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    this.renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    this.renderer.toneMappingExposure = 1.15;
     this.renderer.domElement.setAttribute('aria-label', 'Interactive HexWar battlefield');
     container.appendChild(this.renderer.domElement);
 
-    this.scene.add(new THREE.HemisphereLight(0xc7dcff, 0x172036, 2.4));
-    const keyLight = new THREE.DirectionalLight(0xffffff, 3.2);
-    keyLight.position.set(500, -400, 900);
+    this.scene.add(new THREE.HemisphereLight(0xbfd8ff, 0x111827, 1.85));
+    const keyLight = new THREE.DirectionalLight(0xfff5e8, 4.1);
+    keyLight.position.set(this.boardCenter.x - 450, this.boardCenter.y - 650, 1150);
+    keyLight.castShadow = true;
+    keyLight.shadow.mapSize.set(1024, 1024);
+    keyLight.shadow.camera.left = -1400;
+    keyLight.shadow.camera.right = 1400;
+    keyLight.shadow.camera.top = 1100;
+    keyLight.shadow.camera.bottom = -1100;
+    keyLight.shadow.camera.near = 200;
+    keyLight.shadow.camera.far = 2600;
+    keyLight.shadow.bias = -0.00035;
     this.scene.add(keyLight);
+    const rimLight = new THREE.DirectionalLight(0x6ea8ff, 1.6);
+    rimLight.position.set(this.boardCenter.x + 900, this.boardCenter.y + 500, 650);
+    this.scene.add(rimLight);
 
     this.tileManager = new TileManager(this.scene, this.state.board);
     this.syncScene();
