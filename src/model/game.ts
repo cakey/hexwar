@@ -87,14 +87,14 @@ export interface UnitDefinition {
 }
 
 const UNIT_DEFINITIONS: Record<PieceType, UnitDefinition> = {
-  scout: { movement: 2, influence: [2, 1] },
-  standard: { movement: 1, influence: [3, 2, 1] },
-  anchor: { movement: 1, influence: [2, 1] },
+  scout: { movement: 2, influence: [3, 2, 1] },
+  standard: { movement: 1, influence: [4, 3, 2, 1] },
+  anchor: { movement: 1, influence: [3, 2, 1] },
 };
 
 const DEPLOYED_ANCHOR: UnitDefinition = {
   movement: 0,
-  influence: [4, 3, 2, 1],
+  influence: [5, 4, 3, 2, 1],
 };
 
 const otherTeam = (team: Team): Team => (team === 0 ? 1 : 0);
@@ -206,14 +206,24 @@ export function recalculateGameState(state: GameState): GameState {
       piece.status === 'deployed' && piece.hex !== null,
   );
   const counts: [number, number, number] = [0, 0, 0];
+  const previousControllers = new Map(
+    state.tiles.map((tile) => [hexKey(tile.hex), tile.controller] as const),
+  );
   const tiles = state.board.map((hex): TileState => {
     const influence: [number, number] = [0, 0];
     for (const piece of deployed) {
       const value = getUnitDefinition(piece).influence[distance(piece.hex, hex)] ?? 0;
       influence[piece.team] += value;
     }
+    const totalInfluence = influence[0] + influence[1];
     const controller: Team | null =
-      influence[0] === influence[1] ? null : influence[0] > influence[1] ? 0 : 1;
+      totalInfluence === 0
+        ? (previousControllers.get(hexKey(hex)) ?? null)
+        : influence[0] === influence[1]
+          ? null
+          : influence[0] > influence[1]
+            ? 0
+            : 1;
     counts[controller === null ? 2 : controller] += 1;
     return { hex: cloneHex(hex), influence, controller };
   });

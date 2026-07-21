@@ -61,15 +61,16 @@ player plans every destination before confirming the group.
 ## Unit roles and influence
 
 Influence is additive and uses small visible integer values. A tile belongs to
-the team with the greater total influence; equal non-zero values are contested,
-and zero influence is neutral.
+the team with the greater total influence; equal non-zero values are contested.
+A claimed tile with zero current influence retains its controller, so moving a
+piece leaves territory behind instead of erasing it.
 
-| Piece            | Movement | Own tile | Ring 1 | Ring 2 | Ring 3 |
-| ---------------- | -------: | -------: | -----: | -----: | -----: |
-| Scout            |        2 |        2 |      1 |      — |      — |
-| Standard         |        1 |        3 |      2 |      1 |      — |
-| Anchor, packed   |        1 |        2 |      1 |      — |      — |
-| Anchor, deployed |        0 |        4 |      3 |      2 |      1 |
+| Piece            | Movement | Own tile | Ring 1 | Ring 2 | Ring 3 | Ring 4 |
+| ---------------- | -------: | -------: | -----: | -----: | -----: | -----: |
+| Scout            |        2 |        3 |      2 |      1 |      — |      — |
+| Standard         |        1 |        4 |      3 |      2 |      1 |      — |
+| Anchor, packed   |        1 |        3 |      2 |      1 |      — |      — |
+| Anchor, deployed |        0 |        5 |      4 |      3 |      2 |      1 |
 
 - Scouts trade influence for mobility.
 - Standards provide the dependable center of a formation.

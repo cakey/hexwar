@@ -39,6 +39,7 @@ function scenario(
 ): GameState {
   const state = createInitialState();
   state.board = board;
+  state.tiles = [];
   for (const piece of state.pieces) {
     piece.status = 'reserve';
     piece.hex = null;
@@ -105,10 +106,20 @@ describe('game rules', () => {
 
   it('uses readable weighted influence rings', () => {
     const state = scenario([{ id: 'test-standard', team: 0, type: 'standard', hex: [4, 3] }]);
-    expect(getTile(state, [4, 3])?.influence).toEqual([3, 0]);
-    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 1)?.influence).toEqual([2, 0]);
-    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 2)?.influence).toEqual([1, 0]);
-    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 3)?.influence).toEqual([0, 0]);
+    expect(getTile(state, [4, 3])?.influence).toEqual([4, 0]);
+    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 1)?.influence).toEqual([3, 0]);
+    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 2)?.influence).toEqual([2, 0]);
+    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 3)?.influence).toEqual([1, 0]);
+    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 4)?.influence).toEqual([0, 0]);
+  });
+
+  it('retains claimed territory after its influence moves away', () => {
+    let state = scenario([{ id: 'violet-scout', team: 0, type: 'scout', hex: [4, 3] }]);
+    expect(getTile(state, [2, 3])?.controller).toBe(0);
+    getPiece(state, 'violet-scout')!.hex = [8, 3];
+    state = recalculateGameState(state);
+
+    expect(getTile(state, [2, 3])).toMatchObject({ influence: [0, 0], controller: 0 });
   });
 
   it('offers one move, deployment, stance change, or pass as a normal action', () => {
@@ -187,7 +198,7 @@ describe('game rules', () => {
       { id: 'crimson-standard-b', team: 1, type: 'standard', hex: [5, 2] },
     ]);
 
-    expect(getTile(state, [4, 3])).toMatchObject({ influence: [3, 4], controller: 1 });
+    expect(getTile(state, [4, 3])).toMatchObject({ influence: [4, 6], controller: 1 });
     expect(getPiece(state, 'violet-standard')?.pressured).toBe(true);
   });
 
