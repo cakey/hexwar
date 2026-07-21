@@ -7,9 +7,11 @@
   "packageManager": "npm@10.9.8",
   "scripts": {
     "dev": "vite",
+    "dev:host": "vite --host 0.0.0.0",
     "build": "vite build",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:e2e": "npm run build && PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright playwright test",
     "e2e:install": "PLAYWRIGHT_BROWSERS_PATH=.cache/ms-playwright playwright install chromium",
     "test:watch": "vitest",
@@ -17,7 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "typecheck": "tsc --noEmit",
-    "check:quick": "npm run format:check && npm run lint && npm run typecheck && npm test",
+    "check:quick": "npm run format:check && npm run lint && npm run typecheck && npm run test:coverage",
     "check": "npm run check:quick && npm run test:e2e"
   },
   "engines": {
@@ -38,6 +40,7 @@
     "@types/react-dom": "^19.2.3",
     "@types/three": "^0.185.1",
     "@vitejs/plugin-react": "^6.0.3",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react-hooks": "^7.1.1",

@@ -22,7 +22,9 @@ Vite prints the local development URL, normally <http://localhost:5173>.
 ## Commands
 
 - `npm run dev` starts the development server with hot reload.
+- `npm run dev:host` exposes the development server for testing on another device.
 - `npm test` runs the hex-grid unit tests once.
+- `npm run test:coverage` enforces coverage thresholds for deterministic game rules.
 - `npm run test:e2e` launches an isolated headless browser and verifies WebGL rendering.
 - `npm run e2e:install` installs Playwright's browser into the project cache once.
 - `npm run lint` checks the TypeScript, JavaScript, and React components.
