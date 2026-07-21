@@ -4,6 +4,8 @@ A small turn-based strategy game on a hexagonal battlefield. This is a modernize
 version of the original 2015 prototype, now built with TypeScript, React,
 Three.js, Vite, and Vitest.
 
+[Play HexWar](https://www.benshaw.me/hexwar/)
+
 ## Requirements
 
 - Node.js 22.12 or newer (the exact development version is in `.nvmrc`)
