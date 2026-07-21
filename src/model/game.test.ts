@@ -79,10 +79,19 @@ function findAction<T extends GameAction['type']>(
 describe('game rules', () => {
   it('creates the expected staggered battlefield', () => {
     const board = createBoardHexes();
-    expect(board).toHaveLength(85);
-    expect(new Set(board.map(hexKey)).size).toBe(85);
-    expect(board).toContainEqual([0, 6]);
-    expect(board).not.toContainEqual([1, 6]);
+    expect(board).toHaveLength(113);
+    expect(new Set(board.map(hexKey)).size).toBe(113);
+    expect(board).toContainEqual([0, 7]);
+    expect(board).not.toContainEqual([1, 7]);
+  });
+
+  it('projects a small permanent influence from each home edge', () => {
+    const state = scenario([]);
+    expect(getTile(state, [0, 3])?.influence).toEqual([2, 0]);
+    expect(getTile(state, [1, 3])?.influence).toEqual([1, 0]);
+    expect(getTile(state, [7, 3])?.influence).toEqual([0, 0]);
+    expect(getTile(state, [13, 3])?.influence).toEqual([0, 1]);
+    expect(getTile(state, [14, 3])?.influence).toEqual([0, 2]);
   });
 
   it('starts with symmetric finite rosters', () => {
@@ -101,16 +110,16 @@ describe('game rules', () => {
       ]);
     }
     expect(state.territoryCounts[0]).toBe(state.territoryCounts[1]);
-    expect(state.territoryCounts.reduce((sum, count) => sum + count, 0)).toBe(85);
+    expect(state.territoryCounts.reduce((sum, count) => sum + count, 0)).toBe(113);
   });
 
   it('uses readable weighted influence rings', () => {
-    const state = scenario([{ id: 'test-standard', team: 0, type: 'standard', hex: [4, 3] }]);
-    expect(getTile(state, [4, 3])?.influence).toEqual([4, 0]);
-    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 1)?.influence).toEqual([3, 0]);
-    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 2)?.influence).toEqual([2, 0]);
-    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 3)?.influence).toEqual([1, 0]);
-    expect(state.tiles.find((tile) => distance(tile.hex, [4, 3]) === 4)?.influence).toEqual([0, 0]);
+    const state = scenario([{ id: 'test-standard', team: 0, type: 'standard', hex: [7, 3] }]);
+    expect(getTile(state, [7, 3])?.influence).toEqual([4, 0]);
+    expect(state.tiles.find((tile) => distance(tile.hex, [7, 3]) === 1)?.influence).toEqual([3, 0]);
+    expect(state.tiles.find((tile) => distance(tile.hex, [7, 3]) === 2)?.influence).toEqual([2, 0]);
+    expect(state.tiles.find((tile) => distance(tile.hex, [7, 3]) === 3)?.influence).toEqual([1, 0]);
+    expect(state.tiles.find((tile) => distance(tile.hex, [7, 3]) === 4)?.influence).toEqual([0, 0]);
   });
 
   it('retains claimed territory after its influence moves away', () => {
@@ -148,7 +157,7 @@ describe('game rules', () => {
     );
 
     expect(scoutMoves.some(({ to }) => distance([0, 1], to) === 2)).toBe(true);
-    expect(standardMoves.every(({ to }) => distance([0, 5], to) === 1)).toBe(true);
+    expect(standardMoves.every(({ to }) => distance([0, 6], to) === 1)).toBe(true);
   });
 
   it('commits exactly one action and hands over the turn', () => {
@@ -232,6 +241,7 @@ describe('game rules', () => {
         hex: [1, 0],
         stance: 'deployed',
       },
+      { id: 'crimson-standard', team: 1, type: 'standard', hex: [0, 1] },
     ]);
 
     state = applyAction(state, { type: 'pass' });

@@ -26,7 +26,7 @@ test('renders a playable WebGL battlefield without browser errors', async ({ pag
   expect(hasWebGL).toBe(true);
 
   const scores = await page.locator('.score > span').allTextContents();
-  expect(scores.map(Number).reduce((total, score) => total + score, 0)).toBe(85);
+  expect(scores.map(Number).reduce((total, score) => total + score, 0)).toBe(113);
 
   await page.getByRole('button', { name: /Scout Rapid probe/ }).click();
   await expect(
@@ -41,6 +41,7 @@ test('renders a playable WebGL battlefield without browser errors', async ({ pag
   await expect(page.locator('.tile-intel')).toBeVisible();
   await expect(page.locator('.tile-intel')).toContainText('share');
   await expect(page.locator('.tile-intel')).toContainText('influence');
+  await expect(page.locator('.tile-intel')).toContainText(/needs \d+ more influence to capture/);
 
   const cameraBefore = await canvas.getAttribute('data-camera-target');
   await page.mouse.move(700, 300);

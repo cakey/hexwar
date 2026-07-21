@@ -54,7 +54,6 @@ export const COLORS = {
 
 const HALF_EDGE = 40;
 const TILE_HEIGHT = 8;
-const BOARD_CENTER = new THREE.Vector3(768, 450, 0);
 
 const sameHex = (first: Hex | null, second: Hex | null): boolean =>
   first === null || second === null
@@ -91,6 +90,18 @@ function hexToWorld([column, row]: Hex): { x: number; y: number } {
   return {
     x: (edge * 1.5 + border * (2 / 3)) * column,
     y: (edge * Math.sqrt(3) + border) * (row + percentOffset * 0.5),
+  };
+}
+
+function boardMetrics(board: Hex[]): { center: THREE.Vector3; width: number } {
+  const points = board.map(hexToWorld);
+  const minimumX = Math.min(...points.map(({ x }) => x)) - HALF_EDGE * 2;
+  const maximumX = Math.max(...points.map(({ x }) => x)) + HALF_EDGE * 2;
+  const minimumY = Math.min(...points.map(({ y }) => y)) - HALF_EDGE * 2;
+  const maximumY = Math.max(...points.map(({ y }) => y)) + HALF_EDGE * 2;
+  return {
+    center: new THREE.Vector3((minimumX + maximumX) / 2, (minimumY + maximumY) / 2, 0),
+    width: maximumX - minimumX,
   };
 }
 
@@ -152,7 +163,7 @@ class Tile {
     canvas.width = 256;
     canvas.height = 96;
     const context = canvas.getContext('2d')!;
-    context.fillStyle = team === 0 ? 'rgba(61, 32, 102, .94)' : 'rgba(125, 15, 43, .94)';
+    context.fillStyle = team === 0 ? 'rgba(109, 61, 179, .96)' : 'rgba(190, 42, 76, .96)';
     context.beginPath();
     context.roundRect(5, 5, 246, 86, 30);
     context.fill();
@@ -160,7 +171,7 @@ class Tile {
     context.lineWidth = 5;
     context.stroke();
     context.fillStyle = '#ffffff';
-    context.font = '700 34px DM Sans, sans-serif';
+    context.font = '700 48px DM Sans, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillText(text, 128, 50);
@@ -233,17 +244,7 @@ class TileManager {
       let label: string | null = null;
       if (changed && previewTeam !== undefined) {
         const pointDelta = state.influence[previewTeam] - live.influence[previewTeam];
-        const outcome =
-          live.controller !== state.controller
-            ? state.controller === previewTeam
-              ? 'CAPTURE'
-              : state.controller === null
-                ? 'CONTEST'
-                : 'LOST'
-            : previewTeam === 0
-              ? 'VIOLET'
-              : 'CRIMSON';
-        label = `${outcome} ${pointDelta > 0 ? '+' : ''}${pointDelta}`;
+        label = pointDelta === 0 ? null : `${pointDelta > 0 ? '+' : ''}${pointDelta}`;
       }
       tile?.setInfluenceDelta(label, previewTeam ?? 0);
     }
@@ -359,7 +360,9 @@ export class GameEngine {
   private readonly timer = new THREE.Timer();
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 1, 5000);
-  private readonly cameraTarget = BOARD_CENTER.clone();
+  private readonly cameraTarget = new THREE.Vector3();
+  private readonly boardCenter: THREE.Vector3;
+  private readonly boardScale: number;
   private readonly renderer: THREE.WebGLRenderer;
   private readonly tileManager: TileManager;
   private readonly pieces = new Map<string, PlayerPiece>();
@@ -396,9 +399,13 @@ export class GameEngine {
   constructor(container: HTMLElement, onViewChange: (view: GameView) => void) {
     this.container = container;
     this.onViewChange = onViewChange;
+    const metrics = boardMetrics(this.state.board);
+    this.boardCenter = metrics.center;
+    this.boardScale = metrics.width / 1696;
+    this.cameraTarget.copy(this.boardCenter);
     this.timer.connect(document);
     this.scene.background = new THREE.Color(0x0b1220);
-    this.scene.fog = new THREE.Fog(0x0b1220, 1650, 2600);
+    this.scene.fog = new THREE.Fog(0x0b1220, 1800 * this.boardScale, 3100 * this.boardScale);
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
@@ -440,7 +447,7 @@ export class GameEngine {
     this.mode = mode;
     this.aiThinking = false;
     this.state = createInitialState();
-    this.cameraTarget.copy(BOARD_CENTER);
+    this.cameraTarget.copy(this.boardCenter);
     this.resize();
     this.clearPlanning();
     this.syncScene();
@@ -534,9 +541,9 @@ export class GameEngine {
     this.camera.updateProjectionMatrix();
     const horizontalDistance =
       window.innerWidth > 900
-        ? 2200 / Math.max(this.camera.aspect, 0.55)
-        : 1020 / Math.max(this.camera.aspect, 0.55);
-    const distanceFromBoard = Math.max(1250, horizontalDistance);
+        ? (2200 * this.boardScale) / Math.max(this.camera.aspect, 0.55)
+        : (1020 * this.boardScale) / Math.max(this.camera.aspect, 0.55);
+    const distanceFromBoard = Math.max(1250 * this.boardScale, horizontalDistance);
     this.camera.position.set(
       this.cameraTarget.x,
       this.cameraTarget.y - distanceFromBoard * 0.82,
@@ -654,8 +661,16 @@ export class GameEngine {
       .multiplyScalar(-deltaX * worldPerPixel)
       .add(up.multiplyScalar(deltaY * worldPerPixel));
     const target = this.drag.target.clone().add(offset);
-    target.x = THREE.MathUtils.clamp(target.x, 180, 1350);
-    target.y = THREE.MathUtils.clamp(target.y, 80, 820);
+    target.x = THREE.MathUtils.clamp(
+      target.x,
+      this.boardCenter.x - 590 * this.boardScale,
+      this.boardCenter.x + 590 * this.boardScale,
+    );
+    target.y = THREE.MathUtils.clamp(
+      target.y,
+      this.boardCenter.y - 370 * this.boardScale,
+      this.boardCenter.y + 370 * this.boardScale,
+    );
     const clampedOffset = target.clone().sub(this.drag.target);
     this.cameraTarget.copy(target);
     this.camera.position.copy(this.drag.camera).add(clampedOffset);

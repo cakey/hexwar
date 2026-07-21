@@ -1,4 +1,4 @@
-import { actionKey, applyLegalAction, getLegalActions } from './game.js';
+import { actionKey, applyLegalAction, BOARD_COLUMNS, getLegalActions } from './game.js';
 import type { GameAction, GameState, Team } from './game.js';
 
 export interface AiOptions {
@@ -28,7 +28,7 @@ export function evaluateState(state: GameState, perspective: Team): number {
       score += direction * 18;
       if (piece.pressured) score -= direction * 30;
       if (piece.hex) {
-        const progress = piece.team === 0 ? piece.hex[0] : 12 - piece.hex[0];
+        const progress = piece.team === 0 ? piece.hex[0] : BOARD_COLUMNS - 1 - piece.hex[0];
         score += direction * progress * (piece.type === 'scout' ? 1.3 : 0.7);
       }
       if (piece.type === 'anchor' && piece.stance === 'deployed') score += direction * 8;

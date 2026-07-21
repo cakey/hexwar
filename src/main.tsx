@@ -1,6 +1,7 @@
 import { StrictMode, useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import {
+  baseInfluenceAt,
   cloneGameState,
   createInitialState,
   DOMINANCE_PERCENTAGE,
@@ -43,6 +44,17 @@ function TileIntel({ view }: { view: GameView }) {
   const crimson = tileShare(projected, 1);
   const violetInfluenceDelta = projected.influence[0] - live.influence[0];
   const crimsonInfluenceDelta = projected.influence[1] - live.influence[1];
+  const activeTeam = view.state.activeTeam;
+  const opponent = activeTeam === 0 ? 1 : 0;
+  const activeInfluence = projected.influence[activeTeam];
+  const opposingInfluence = projected.influence[opponent];
+  const captureNeed = Math.max(0, opposingInfluence - activeInfluence + 1);
+  const captureSummary =
+    projected.controller === activeTeam
+      ? activeInfluence + opposingInfluence === 0
+        ? `${TEAM_NAMES[activeTeam]} holds this tile without active influence.`
+        : `${TEAM_NAMES[activeTeam]} leads by ${activeInfluence - opposingInfluence}.`
+      : `${TEAM_NAMES[activeTeam]} needs ${captureNeed} more influence to capture.`;
   const owner =
     projected.influence[0] + projected.influence[1] === 0 && projected.controller !== null
       ? `${TEAM_NAMES[projected.controller]} held · no active pressure`
@@ -55,9 +67,15 @@ function TileIntel({ view }: { view: GameView }) {
       <div>
         <strong>Hex {view.hoveredHex.join(', ')}</strong>
         <small>{owner}</small>
+        <small>{captureSummary}</small>
       </div>
       <span className="tile-intel__violet">
-        Violet {violet}% <small>share · {projected.influence[0]} influence</small>
+        Violet {violet}% share
+        <small>
+          {projected.influence[0]} influence
+          {baseInfluenceAt(view.hoveredHex, 0) > 0 &&
+            ` · ${baseInfluenceAt(view.hoveredHex, 0)} from base`}
+        </small>
         {violetInfluenceDelta !== 0 && (
           <b>
             {violetInfluenceDelta > 0 ? '+' : ''}
@@ -66,7 +84,12 @@ function TileIntel({ view }: { view: GameView }) {
         )}
       </span>
       <span className="tile-intel__crimson">
-        Crimson {crimson}% <small>share · {projected.influence[1]} influence</small>
+        Crimson {crimson}% share
+        <small>
+          {projected.influence[1]} influence
+          {baseInfluenceAt(view.hoveredHex, 1) > 0 &&
+            ` · ${baseInfluenceAt(view.hoveredHex, 1)} from base`}
+        </small>
         {crimsonInfluenceDelta !== 0 && (
           <b>
             {crimsonInfluenceDelta > 0 ? '+' : ''}

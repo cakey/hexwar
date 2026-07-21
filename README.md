@@ -60,3 +60,6 @@ it, the arrow keys to choose a destination, Enter to preview, and Enter again to
 confirm; Escape steps back. Control 60% of the board through the opponent's
 response to win. The default mode is Violet versus the Crimson AI; hotseat play
 is available from the top-right controls.
+
+Each home edge also supplies permanent defensive influence: 2 on the outermost
+column and 1 on the adjacent column.

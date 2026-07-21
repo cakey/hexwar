@@ -9,10 +9,11 @@ export type MatchPhase = 'action' | 'retreat' | 'game-over';
 export type Winner = Team | 'draw' | null;
 
 export const TEAM_NAMES = ['Violet', 'Crimson'] as const;
-export const BOARD_COLUMNS = 13;
-export const BOARD_ROWS = 7;
+export const BOARD_COLUMNS = 15;
+export const BOARD_ROWS = 8;
 export const DOMINANCE_PERCENTAGE = 0.6;
 export const MAX_TURNS = 80;
+export const BASE_INFLUENCE = [2, 1] as const;
 
 export interface PieceState {
   id: string;
@@ -100,6 +101,11 @@ const DEPLOYED_ANCHOR: UnitDefinition = {
 const otherTeam = (team: Team): Team => (team === 0 ? 1 : 0);
 const cloneHex = ([column, row]: Hex): Hex => [column, row];
 
+export function baseInfluenceAt([column]: Hex, team: Team): number {
+  const distanceFromBase = team === 0 ? column : BOARD_COLUMNS - 1 - column;
+  return BASE_INFLUENCE[distanceFromBase] ?? 0;
+}
+
 export function createBoardHexes(columns = BOARD_COLUMNS, rows = BOARD_ROWS): Hex[] {
   const hexes: Hex[] = [];
   for (let column = 0; column < columns; column += 1) {
@@ -123,13 +129,13 @@ function startingPieces(): PieceState[] {
 
   return [
     makePiece(0, 'scout', 1, [0, 1]),
-    makePiece(0, 'anchor', 1, [0, 3]),
-    makePiece(0, 'standard', 1, [0, 5]),
+    makePiece(0, 'anchor', 1, [0, 4]),
+    makePiece(0, 'standard', 1, [0, 6]),
     makePiece(0, 'scout', 2, null),
     makePiece(0, 'standard', 2, null),
-    makePiece(1, 'scout', 1, [12, 1]),
-    makePiece(1, 'anchor', 1, [12, 3]),
-    makePiece(1, 'standard', 1, [12, 5]),
+    makePiece(1, 'scout', 1, [BOARD_COLUMNS - 1, 1]),
+    makePiece(1, 'anchor', 1, [BOARD_COLUMNS - 1, 4]),
+    makePiece(1, 'standard', 1, [BOARD_COLUMNS - 1, 6]),
     makePiece(1, 'scout', 2, null),
     makePiece(1, 'standard', 2, null),
   ];
@@ -210,7 +216,7 @@ export function recalculateGameState(state: GameState): GameState {
     state.tiles.map((tile) => [hexKey(tile.hex), tile.controller] as const),
   );
   const tiles = state.board.map((hex): TileState => {
-    const influence: [number, number] = [0, 0];
+    const influence: [number, number] = [baseInfluenceAt(hex, 0), baseInfluenceAt(hex, 1)];
     for (const piece of deployed) {
       const value = getUnitDefinition(piece).influence[distance(piece.hex, hex)] ?? 0;
       influence[piece.team] += value;

@@ -13,7 +13,9 @@ to the opponent.
 
 ## Match setup
 
-- The initial board contains 85 tiles in 13 staggered columns.
+- The initial board contains 113 tiles in 15 staggered columns.
+- Each home edge supplies permanent base influence: 2 on the outer column and
+  1 on the adjacent column.
 - Violet begins on the left and Crimson begins on the right.
 - Each roster contains two Scouts, two Standards, and one Anchor.
 - One Scout, one Standard, and the Anchor begin deployed.
