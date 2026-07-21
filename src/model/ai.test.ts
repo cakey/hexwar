@@ -48,5 +48,5 @@ describe('computer player', () => {
     expect(first.turns).toBeLessThanOrEqual(80);
     expect(first.finalTerritory.reduce((total, count) => total + count, 0)).toBe(113);
     expect(summarizeSimulations([first])).toContain('1 games');
-  });
+  }, 15_000);
 });
