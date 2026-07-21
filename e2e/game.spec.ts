@@ -30,7 +30,27 @@ test('renders a playable WebGL battlefield without browser errors', async ({ pag
 
   await page.screenshot({ path: 'test-results/hexwar.png' });
 
+  await page.getByRole('button', { name: 'How to play' }).click();
+  await expect(page.getByRole('heading', { name: 'Win through influence' })).toBeVisible();
+  await page.getByRole('button', { name: 'Close how to play' }).click();
+
+  await page.getByRole('button', { name: 'Pass' }).click();
+  await page.getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.getByRole('heading', { name: 'Crimson moves' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Violet moves' })).toBeVisible({
+    timeout: 10_000,
+  });
+  await expect(page.getByText(/Round 2/)).toBeVisible();
+
+  await page.getByRole('button', { name: 'Hotseat' }).click();
+  await page.getByRole('button', { name: 'Pass' }).click();
+  await expect(page.getByText('Pass this turn')).toBeVisible();
+  await expect(canvas).toHaveAttribute('data-planned-action', 'pass');
+  await page.getByRole('button', { name: 'Confirm' }).click();
+  await expect(page.getByRole('heading', { name: 'Crimson moves' })).toBeVisible();
+
   await page.getByRole('button', { name: 'New match' }).click();
-  await expect(page.getByText('Turn 1')).toBeVisible();
+  await expect(page.getByText(/Round 1/)).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Violet moves' })).toBeVisible();
   expect(browserErrors).toEqual([]);
 });
