@@ -26,6 +26,7 @@ Vite prints the local development URL, normally <http://localhost:5173>.
 - `npm test` runs the hex-grid unit tests once.
 - `npm run test:coverage` enforces coverage thresholds for deterministic game rules.
 - `npm run test:e2e` launches an isolated headless browser and verifies WebGL rendering.
+- `npm run simulate -- --games=10` runs seeded AI-vs-AI matches for balance feedback.
 - `npm run e2e:install` installs Playwright's browser into the project cache once.
 - `npm run lint` checks the TypeScript, JavaScript, and React components.
 - `npm run format` formats supported project files with Prettier.
@@ -43,6 +44,14 @@ opponent and balance strategy in [docs/ai-design.md](./docs/ai-design.md).
 
 ## How to play
 
-Violet goes first. Select one of the current team's pieces, then select a
-highlighted destination. Each team gets four hexes of movement per turn.
-Territory is claimed automatically based on the nearby pieces' influence.
+Violet goes first and takes one action: move a piece, place a ready reserve,
+change the Anchor's stance, or pass. Every action is previewed on the board and
+must be confirmed. Scouts travel quickly, Standards project broad influence,
+and a deployed Anchor is immobile but exceptionally strong.
+
+Tiles belong to the team with the greater nearby influence. A piece standing in
+enemy-controlled territory is pressured; if its owner cannot relieve that
+pressure on their next action, it retreats for free or is routed into cooldown.
+Control 60% of the board through the opponent's response to win. The default
+mode is Violet versus the Crimson AI; hotseat play is available from the top
+right controls.

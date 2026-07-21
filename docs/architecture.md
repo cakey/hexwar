@@ -7,16 +7,18 @@ can evolve without coupling gameplay to a graphics framework.
 
 1. React mounts `GameEngine` and renders snapshots into the HUD.
 2. `GameEngine` translates pointer input into board coordinates.
-3. `GameModel` validates the command and returns a transition describing any
-   piece movement.
-4. The engine animates that transition, synchronizes selection and territory,
+3. The pure rules engine enumerates legal actions, validates the selected
+   action, and returns a new serializable state.
+4. The browser engine animates that transition, synchronizes selection and territory,
    and publishes a fresh immutable snapshot to React.
 5. Three.js renders frames independently from rule evaluation.
 
 ## Source layout
 
-- `src/model/game.ts` owns pieces, turns, movement budgets, occupancy,
-  influence, territory, and preview calculations.
+- `src/model/game.ts` owns serializable state, legal actions, influence,
+  pressure, retreats, cooldowns, turn resolution, and victory.
+- `src/model/ai.ts` owns deterministic evaluation and bounded two-ply search.
+- `src/model/simulation.ts` runs headless matches for regression and balance data.
 - `src/model/hex.ts` owns coordinate conversion, adjacency, distance, and path
   finding.
 - `src/rendering/game-engine.ts` owns Three.js resources, animation, raycasting,
@@ -33,9 +35,9 @@ can evolve without coupling gameplay to a graphics framework.
 - User actions enter through model commands; render objects do not mutate rules.
 - New rules need model tests. New assembled user flows need Playwright coverage.
 
-## Likely extension points
+## Extension points
 
-- Define match phases and win conditions in `GameModel`.
-- Represent units with data-driven stats instead of renderer-specific classes.
-- Serialize snapshots and commands for save games, replays, or networking.
-- Add seeded randomness at the model boundary when combat requires it.
+- Persist `GameState` plus action keys for save games and replay timelines.
+- Move AI search into a Web Worker if deeper difficulty levels need larger trees.
+- Add map definitions around the existing board-coordinate array.
+- Add online turns by transporting actions and verifying them with `isActionLegal`.
