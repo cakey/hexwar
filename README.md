@@ -38,6 +38,9 @@ See [CONTRIBUTING.md](./CONTRIBUTING.md) for the development workflow and
 project boundaries, and [docs/architecture.md](./docs/architecture.md) for the
 runtime design and extension points.
 
+The agreed rules live in [docs/game-design.md](./docs/game-design.md), with the
+opponent and balance strategy in [docs/ai-design.md](./docs/ai-design.md).
+
 ## How to play
 
 Violet goes first. Select one of the current team's pieces, then select a
