@@ -10,7 +10,7 @@ import {
   getPiece,
   previewAction,
 } from '../model/game.js';
-import { hexKey } from '../model/hex.js';
+import { distance, hexKey } from '../model/hex.js';
 import type {
   AnchorStance,
   GameAction,
@@ -33,6 +33,8 @@ export interface GameView {
   mode: MatchMode;
   aiThinking: boolean;
   hoveredHex: Hex | null;
+  keyboardStage: 'pieces' | 'destinations' | null;
+  keyboardDestination: Hex | null;
 }
 
 export type MatchMode = 'ai' | 'hotseat';
@@ -53,11 +55,6 @@ export const COLORS = {
 const HALF_EDGE = 40;
 const TILE_HEIGHT = 8;
 const BOARD_CENTER = new THREE.Vector3(768, 450, 0);
-
-function influenceShare(tile: TileState, team: 0 | 1): number {
-  const total = tile.influence[0] + tile.influence[1];
-  return total === 0 ? 0 : Math.round((tile.influence[team] / total) * 100);
-}
 
 const sameHex = (first: Hex | null, second: Hex | null): boolean =>
   first === null || second === null
@@ -163,7 +160,7 @@ class Tile {
     context.lineWidth = 5;
     context.stroke();
     context.fillStyle = '#ffffff';
-    context.font = '700 38px DM Sans, sans-serif';
+    context.font = '700 34px DM Sans, sans-serif';
     context.textAlign = 'center';
     context.textBaseline = 'middle';
     context.fillText(text, 128, 50);
@@ -235,13 +232,18 @@ class TileManager {
         (live.influence[0] !== state.influence[0] || live.influence[1] !== state.influence[1]);
       let label: string | null = null;
       if (changed && previewTeam !== undefined) {
-        const projectedShare = influenceShare(state, previewTeam);
-        const shareDelta = projectedShare - influenceShare(live, previewTeam);
         const pointDelta = state.influence[previewTeam] - live.influence[previewTeam];
-        label =
-          shareDelta === 0
-            ? `${projectedShare}% ${pointDelta > 0 ? '+' : ''}${pointDelta}i`
-            : `${projectedShare}% ${shareDelta > 0 ? '+' : ''}${shareDelta}`;
+        const outcome =
+          live.controller !== state.controller
+            ? state.controller === previewTeam
+              ? 'CAPTURE'
+              : state.controller === null
+                ? 'CONTEST'
+                : 'LOST'
+            : previewTeam === 0
+              ? 'VIOLET'
+              : 'CRIMSON';
+        label = `${outcome} ${pointDelta > 0 ? '+' : ''}${pointDelta}`;
       }
       tile?.setInfluenceDelta(label, previewTeam ?? 0);
     }
@@ -368,6 +370,8 @@ export class GameEngine {
   private previewState: GameState | null = null;
   private retreatChoices: Record<string, Hex | null> = {};
   private hoveredHex?: Hex;
+  private keyboardStage: 'pieces' | 'destinations' | null = null;
+  private keyboardDestination?: Hex;
   private mode: MatchMode = 'ai';
   private aiThinking = false;
   private readonly aiTimers = new Set<number>();
@@ -448,6 +452,8 @@ export class GameEngine {
     const piece = getPiece(this.state, pieceId);
     if (piece?.team !== this.state.activeTeam || piece.status !== 'reserve') return;
     this.selectedPieceId = pieceId;
+    this.keyboardStage = null;
+    this.keyboardDestination = undefined;
     this.syncScene();
     this.publish();
   }
@@ -457,6 +463,8 @@ export class GameEngine {
     const piece = getPiece(this.state, pieceId);
     if (piece?.team !== this.state.activeTeam || piece.status !== 'deployed') return;
     this.selectedPieceId = pieceId;
+    this.keyboardStage = null;
+    this.keyboardDestination = undefined;
     this.syncScene();
     this.publish();
   }
@@ -596,6 +604,8 @@ export class GameEngine {
     )
       return;
     this.updatePointer(event);
+    this.keyboardStage = null;
+    this.keyboardDestination = undefined;
     const clickedHex = this.intersectedHex();
     if (!clickedHex) {
       this.selectedPieceId = null;
@@ -656,13 +666,143 @@ export class GameEngine {
     const target = event.target as HTMLElement | null;
     if (target?.closest('input, select, textarea, a')) return;
     if (event.key === 'Enter' && target?.closest('.confirmation button')) return;
-    if (event.key === 'Enter' && this.plannedAction && this.canHumanAct()) {
+    if (!this.canHumanAct() || this.state.phase === 'game-over') return;
+    if (event.key.startsWith('Arrow') && !this.plannedAction) {
+      event.preventDefault();
+      if (this.keyboardStage === 'destinations' || this.state.phase === 'retreat') {
+        if (this.keyboardStage !== 'destinations') this.beginKeyboardDestinations();
+        this.moveKeyboardDestination(event.key);
+      } else {
+        this.cycleKeyboardPiece(event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : 1);
+      }
+    } else if (event.key === 'Enter' && this.plannedAction) {
       event.preventDefault();
       this.confirm();
-    } else if (event.key === 'Escape' && this.plannedAction && this.canHumanAct()) {
+    } else if (event.key === 'Enter' && this.keyboardStage === 'destinations') {
+      event.preventDefault();
+      this.planKeyboardDestination();
+    } else if (event.key === 'Enter' && this.selectedPieceId) {
+      event.preventDefault();
+      this.beginKeyboardDestinations();
+    } else if (event.key === 'Escape' && this.plannedAction) {
       event.preventDefault();
       this.cancel();
+    } else if (event.key === 'Escape' && this.keyboardStage === 'destinations') {
+      event.preventDefault();
+      this.keyboardStage = 'pieces';
+      this.keyboardDestination = undefined;
+      this.publish();
+    } else if (event.key === 'Escape' && this.keyboardStage === 'pieces') {
+      event.preventDefault();
+      this.selectedPieceId = null;
+      this.keyboardStage = null;
+      this.syncScene();
+      this.publish();
     }
+  }
+
+  private cycleKeyboardPiece(step: -1 | 1): void {
+    if (this.state.phase !== 'action') return;
+    const pieces = this.state.pieces.filter(
+      (piece) => piece.team === this.state.activeTeam && piece.status !== 'cooling',
+    );
+    if (pieces.length === 0) return;
+    const current = pieces.findIndex(({ id }) => id === this.selectedPieceId);
+    const index =
+      current < 0
+        ? step > 0
+          ? 0
+          : pieces.length - 1
+        : (current + step + pieces.length) % pieces.length;
+    this.selectedPieceId = pieces[index].id;
+    this.keyboardStage = 'pieces';
+    this.keyboardDestination = undefined;
+    this.syncScene();
+    this.publish();
+  }
+
+  private beginKeyboardDestinations(): void {
+    if (!this.selectedPieceId) return;
+    const destinations =
+      this.state.phase === 'retreat'
+        ? this.retreatDestinations()
+        : this.destinationActions()
+            .filter(
+              (action): action is Extract<GameAction, { type: 'move' | 'deploy' }> =>
+                action.type === 'move' || action.type === 'deploy',
+            )
+            .map(({ to }) => to);
+    if (destinations.length === 0) {
+      const stance = getLegalActions(this.state).find(
+        (action) => action.type === 'stance' && action.pieceId === this.selectedPieceId,
+      );
+      if (stance) this.plan(stance);
+      return;
+    }
+    const piece = getPiece(this.state, this.selectedPieceId);
+    this.keyboardStage = 'destinations';
+    this.keyboardDestination = cloneHex(
+      piece?.hex
+        ? [...destinations].sort(
+            (first, second) => distance(piece.hex!, first) - distance(piece.hex!, second),
+          )[0]
+        : destinations[0],
+    );
+    this.publish();
+  }
+
+  private moveKeyboardDestination(key: string): void {
+    const destinations = this.legalDestinations();
+    if (destinations.length === 0) return;
+    if (!this.keyboardDestination) {
+      this.keyboardDestination = cloneHex(destinations[0]);
+      this.publish();
+      return;
+    }
+    const origin = this.projectHex(this.keyboardDestination);
+    const direction =
+      key === 'ArrowLeft'
+        ? new THREE.Vector2(-1, 0)
+        : key === 'ArrowRight'
+          ? new THREE.Vector2(1, 0)
+          : key === 'ArrowUp'
+            ? new THREE.Vector2(0, 1)
+            : new THREE.Vector2(0, -1);
+    const candidate = destinations
+      .filter((hex) => !sameHex(hex, this.keyboardDestination!))
+      .map((hex) => {
+        const offset = this.projectHex(hex).sub(origin);
+        const length = offset.length();
+        const alignment = length === 0 ? -1 : offset.dot(direction) / length;
+        return { hex, alignment, length };
+      })
+      .filter(({ alignment }) => alignment > 0.25)
+      .sort(
+        (first, second) => second.alignment - first.alignment || first.length - second.length,
+      )[0];
+    if (!candidate) return;
+    this.keyboardDestination = cloneHex(candidate.hex);
+    this.publish();
+  }
+
+  private projectHex(hex: Hex): THREE.Vector2 {
+    const world = hexToWorld(hex);
+    const projected = new THREE.Vector3(world.x, world.y, TILE_HEIGHT).project(this.camera);
+    return new THREE.Vector2(projected.x, projected.y);
+  }
+
+  private planKeyboardDestination(): void {
+    if (!this.keyboardDestination) return;
+    if (this.state.phase === 'retreat') {
+      this.chooseRetreat(this.keyboardDestination);
+      return;
+    }
+    const action = this.destinationActions().find(
+      (candidate) =>
+        (candidate.type === 'move' || candidate.type === 'deploy') &&
+        sameHex(candidate.to, this.keyboardDestination!),
+    );
+    if (action) this.plan(action);
   }
 
   private setHoveredHex(hex: Hex | undefined): void {
@@ -741,6 +881,8 @@ export class GameEngine {
     this.plannedAction = null;
     this.previewState = null;
     this.retreatChoices = {};
+    this.keyboardStage = null;
+    this.keyboardDestination = undefined;
   }
 
   private syncScene(): void {
@@ -786,6 +928,7 @@ export class GameEngine {
   }
 
   private legalDestinations(): Hex[] {
+    if (this.keyboardStage === 'pieces') return [];
     if (this.state.phase === 'retreat') return this.retreatDestinations();
     return this.destinationActions()
       .filter((action): action is Extract<GameAction, { type: 'move' | 'deploy' }> =>
@@ -805,6 +948,8 @@ export class GameEngine {
       mode: this.mode,
       aiThinking: this.aiThinking,
       hoveredHex: this.hoveredHex ? cloneHex(this.hoveredHex) : null,
+      keyboardStage: this.keyboardStage,
+      keyboardDestination: this.keyboardDestination ? cloneHex(this.keyboardDestination) : null,
     });
   }
 
@@ -852,11 +997,15 @@ export class GameEngine {
     const delta = Math.min(this.timer.getDelta(), 0.05);
     for (const piece of this.pieces.values()) piece.update(delta);
     const destinations = this.legalDestinations();
-    this.tileManager.setHighlights(destinations, this.hoveredHex);
+    this.tileManager.setHighlights(destinations, this.keyboardDestination ?? this.hoveredHex);
     this.renderer.render(this.scene, this.camera);
     this.renderer.domElement.dataset.rendered = 'true';
     this.renderer.domElement.dataset.turn = String(this.state.turn);
     this.renderer.domElement.dataset.phase = this.state.phase;
+    this.renderer.domElement.dataset.keyboardStage = this.keyboardStage ?? 'none';
+    if (this.keyboardDestination)
+      this.renderer.domElement.dataset.keyboardHex = hexKey(this.keyboardDestination);
+    else delete this.renderer.domElement.dataset.keyboardHex;
     this.renderer.domElement.dataset.cameraTarget = `${Math.round(this.cameraTarget.x)},${Math.round(
       this.cameraTarget.y,
     )}`;

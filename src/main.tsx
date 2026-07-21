@@ -24,6 +24,8 @@ const INITIAL_VIEW: GameView = {
   mode: 'ai',
   aiThinking: false,
   hoveredHex: null,
+  keyboardStage: null,
+  keyboardDestination: null,
 };
 
 function tileShare(tile: TileState | undefined, team: 0 | 1): number {
@@ -39,8 +41,8 @@ function TileIntel({ view }: { view: GameView }) {
   if (!live || !projected) return null;
   const violet = tileShare(projected, 0);
   const crimson = tileShare(projected, 1);
-  const violetDelta = violet - tileShare(live, 0);
-  const crimsonDelta = crimson - tileShare(live, 1);
+  const violetInfluenceDelta = projected.influence[0] - live.influence[0];
+  const crimsonInfluenceDelta = projected.influence[1] - live.influence[1];
   const owner =
     projected.influence[0] + projected.influence[1] === 0 && projected.controller !== null
       ? `${TEAM_NAMES[projected.controller]} held · no active pressure`
@@ -55,12 +57,22 @@ function TileIntel({ view }: { view: GameView }) {
         <small>{owner}</small>
       </div>
       <span className="tile-intel__violet">
-        V {violet}% <small>({projected.influence[0]})</small>
-        {violetDelta !== 0 && <b>{violetDelta > 0 ? `+${violetDelta}` : violetDelta}</b>}
+        Violet {violet}% <small>share · {projected.influence[0]} influence</small>
+        {violetInfluenceDelta !== 0 && (
+          <b>
+            {violetInfluenceDelta > 0 ? '+' : ''}
+            {violetInfluenceDelta} influence
+          </b>
+        )}
       </span>
       <span className="tile-intel__crimson">
-        C {crimson}% <small>({projected.influence[1]})</small>
-        {crimsonDelta !== 0 && <b>{crimsonDelta > 0 ? `+${crimsonDelta}` : crimsonDelta}</b>}
+        Crimson {crimson}% <small>share · {projected.influence[1]} influence</small>
+        {crimsonInfluenceDelta !== 0 && (
+          <b>
+            {crimsonInfluenceDelta > 0 ? '+' : ''}
+            {crimsonInfluenceDelta} influence
+          </b>
+        )}
       </span>
     </aside>
   );
@@ -151,7 +163,11 @@ function ControlPanel({ view, engine }: ControlPanelProps) {
   let hint = 'Choose a piece, reserve, or pass.';
   if (!humanTurn) hint = 'Crimson is weighing territory, pressure, and your reply.';
   else if (state.phase === 'retreat') hint = 'Plan a safe tile for each forced retreat.';
-  else if (plannedAction) hint = 'Review the projected influence, then confirm.';
+  else if (plannedAction) hint = 'Review the projected influence, then press Enter to confirm.';
+  else if (view.keyboardStage === 'pieces' && selected)
+    hint = `${pieceName(selected)} focused · press Enter to choose its destination.`;
+  else if (view.keyboardStage === 'destinations')
+    hint = 'Use the arrow keys to choose a hex, then press Enter to preview.';
   else if (selected) hint = `Choose one of ${view.legalDestinations.length} legal destinations.`;
 
   return (
@@ -342,7 +358,7 @@ function App() {
           How to play
         </button>
       </div>
-      <p className="instructions">Drag to pan · Enter confirms · Esc cancels</p>
+      <p className="instructions">Arrow keys select · Enter advances · Esc goes back · drag pans</p>
 
       {winner !== null && (
         <div className="match-result" role="dialog" aria-modal="true" aria-label="Match complete">
@@ -371,6 +387,7 @@ function App() {
             <li>Scouts move 2; Standards spread wide influence; deployed Anchors hold ground.</li>
             <li>Relieve pressured pieces on your next action or retreat them for free.</li>
             <li>Hold at least 60% of the board through the opponent's reply to win.</li>
+            <li>Use arrows to choose pieces and hexes; Enter advances and Escape steps back.</li>
           </ol>
         </div>
       )}

@@ -39,6 +39,8 @@ test('renders a playable WebGL battlefield without browser errors', async ({ pag
 
   await page.mouse.move(640, 360);
   await expect(page.locator('.tile-intel')).toBeVisible();
+  await expect(page.locator('.tile-intel')).toContainText('share');
+  await expect(page.locator('.tile-intel')).toContainText('influence');
 
   const cameraBefore = await canvas.getAttribute('data-camera-target');
   await page.mouse.move(700, 300);
@@ -75,5 +77,19 @@ test('renders a playable WebGL battlefield without browser errors', async ({ pag
   await page.getByRole('button', { name: 'New match' }).click();
   await expect(page.getByText(/Round 1/)).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Violet moves' })).toBeVisible();
+
+  await page.keyboard.press('ArrowRight');
+  await expect(canvas).toHaveAttribute('data-keyboard-stage', 'pieces');
+  await expect(
+    page.locator('.selected-unit').getByRole('heading', { name: 'Scout' }),
+  ).toBeVisible();
+  await page.keyboard.press('Enter');
+  await expect(canvas).toHaveAttribute('data-keyboard-stage', 'destinations');
+  await expect(canvas).toHaveAttribute('data-keyboard-hex', /.+/);
+  await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('Enter');
+  await expect(canvas).toHaveAttribute('data-planned-action', /move:violet-scout-1/);
+  await page.keyboard.press('Enter');
+  await expect(page.getByRole('heading', { name: 'Crimson moves' })).toBeVisible();
   expect(browserErrors).toEqual([]);
 });

@@ -173,7 +173,7 @@ button {
   display: flex;
   align-items: center;
   gap: 16px;
-  min-width: 390px;
+  min-width: 590px;
   padding: 9px 14px;
   border: 1px solid rgb(255 255 255 / 10%);
   border-radius: 12px;
@@ -200,6 +200,8 @@ button {
 }
 
 .tile-intel > span {
+  display: flex;
+  flex-direction: column;
   font-size: 14px;
   font-weight: 700;
 }
@@ -213,9 +215,9 @@ button {
 }
 
 .tile-intel b {
-  margin-left: 4px;
   color: #35d07f;
   font-size: 10px;
+  font-weight: 600;
 }
 
 .turn-panel {
@@ -767,9 +769,15 @@ button {
 
   .tile-intel {
     top: 132px;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     min-width: 0;
     width: calc(100vw - 32px);
     gap: 10px;
+  }
+
+  .tile-intel > div {
+    grid-column: 1 / -1;
   }
 
   .score__team {

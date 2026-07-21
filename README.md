@@ -53,8 +53,10 @@ Tiles belong to the team with the greater nearby influence. A piece standing in
 enemy-controlled territory is pressured; if its owner cannot relieve that
 pressure on their next action, it retreats for free or is routed into cooldown.
 Claimed territory remains yours when a piece moves away, until opposing
-influence challenges it. Hover a tile for exact influence percentages; planned
-moves display their local percentage and influence deltas. Drag the battlefield
-to pan, press Enter to confirm, and press Escape to cancel. Control 60% of the
-board through the opponent's response to win. The default mode is Violet versus
-the Crimson AI; hotseat play is available from the top-right controls.
+influence challenges it. Hover a tile for exact influence shares and raw totals;
+planned moves label each affected tile with its plain influence delta. Drag the battlefield
+to pan. For keyboard play, use the arrow keys to focus a piece, Enter to choose
+it, the arrow keys to choose a destination, Enter to preview, and Enter again to
+confirm; Escape steps back. Control 60% of the board through the opponent's
+response to win. The default mode is Violet versus the Crimson AI; hotseat play
+is available from the top-right controls.
