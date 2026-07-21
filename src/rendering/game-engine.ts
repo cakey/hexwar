@@ -32,6 +32,7 @@ export interface GameView {
   retreatingPieceId: string | null;
   mode: MatchMode;
   aiThinking: boolean;
+  hoveredHex: Hex | null;
 }
 
 export type MatchMode = 'ai' | 'hotseat';
@@ -51,6 +52,12 @@ export const COLORS = {
 
 const HALF_EDGE = 40;
 const TILE_HEIGHT = 8;
+const BOARD_CENTER = new THREE.Vector3(768, 450, 0);
+
+function influenceShare(tile: TileState, team: 0 | 1): number {
+  const total = tile.influence[0] + tile.influence[1];
+  return total === 0 ? 0 : Math.round((tile.influence[team] / total) * 100);
+}
 
 const sameHex = (first: Hex | null, second: Hex | null): boolean =>
   first === null || second === null
@@ -96,6 +103,13 @@ class Tile {
   readonly mesh: THREE.Mesh<THREE.ExtrudeGeometry, THREE.MeshStandardMaterial>;
   private state: TileState;
   private highlight: TileHighlight = 'none';
+  private readonly deltaMaterial = new THREE.SpriteMaterial({
+    depthTest: false,
+    depthWrite: false,
+    transparent: true,
+  });
+  private readonly deltaSprite = new THREE.Sprite(this.deltaMaterial);
+  private deltaText = '';
 
   constructor(hex: Hex, geometry: THREE.ExtrudeGeometry) {
     this.hex = hex;
@@ -109,6 +123,11 @@ class Tile {
     const { x, y } = hexToWorld(hex);
     this.mesh.position.set(x, y, 0);
     this.mesh.userData.tile = this;
+    this.deltaSprite.position.set(0, 0, 48);
+    this.deltaSprite.scale.set(108, 40, 1);
+    this.deltaSprite.renderOrder = 4;
+    this.deltaSprite.visible = false;
+    this.mesh.add(this.deltaSprite);
   }
 
   setState(state: TileState): void {
@@ -122,6 +141,44 @@ class Tile {
     this.updateColor();
   }
 
+  setInfluenceDelta(text: string | null, team: 0 | 1): void {
+    if (text === null) {
+      this.deltaSprite.visible = false;
+      this.deltaText = '';
+      return;
+    }
+    this.deltaSprite.visible = true;
+    if (text === this.deltaText) return;
+    this.deltaText = text;
+    this.deltaMaterial.map?.dispose();
+    const canvas = document.createElement('canvas');
+    canvas.width = 256;
+    canvas.height = 96;
+    const context = canvas.getContext('2d')!;
+    context.fillStyle = team === 0 ? 'rgba(61, 32, 102, .94)' : 'rgba(125, 15, 43, .94)';
+    context.beginPath();
+    context.roundRect(5, 5, 246, 86, 30);
+    context.fill();
+    context.strokeStyle = team === 0 ? '#c99cff' : '#ff9aae';
+    context.lineWidth = 5;
+    context.stroke();
+    context.fillStyle = '#ffffff';
+    context.font = '700 38px DM Sans, sans-serif';
+    context.textAlign = 'center';
+    context.textBaseline = 'middle';
+    context.fillText(text, 128, 50);
+    const texture = new THREE.CanvasTexture(canvas);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    this.deltaMaterial.map = texture;
+    this.deltaMaterial.needsUpdate = true;
+  }
+
+  dispose(): void {
+    this.material.dispose();
+    this.deltaMaterial.map?.dispose();
+    this.deltaMaterial.dispose();
+  }
+
   private updateColor(): void {
     if (this.highlight === 'hovered') {
       this.material.color.setHex(COLORS.highlight);
@@ -131,9 +188,16 @@ class Tile {
       this.material.color.setHex(COLORS.available);
       return;
     }
-    if (this.state.controller === 0) this.material.color.setHex(COLORS.violet);
-    else if (this.state.controller === 1) this.material.color.setHex(COLORS.crimson);
-    else if (this.state.influence[0] + this.state.influence[1] > 0) {
+    if (this.state.controller !== null) {
+      const winning = this.state.influence[this.state.controller];
+      const losing = this.state.influence[this.state.controller === 0 ? 1 : 0];
+      const margin = winning - losing;
+      const strength = margin >= 5 ? 0.95 : margin >= 3 ? 0.76 : margin >= 2 ? 0.57 : 0.38;
+      const teamColor = new THREE.Color(
+        this.state.controller === 0 ? COLORS.violet : COLORS.crimson,
+      );
+      this.material.color.setHex(COLORS.neutral).lerp(teamColor, strength);
+    } else if (this.state.influence[0] + this.state.influence[1] > 0) {
       this.material.color.setHex(COLORS.contested);
     } else this.material.color.setHex(COLORS.neutral);
   }
@@ -155,12 +219,32 @@ class TileManager {
   }
 
   intersect(raycaster: THREE.Raycaster): Hex | undefined {
-    const intersection = raycaster.intersectObjects(this.group.children, false)[0];
+    const meshes = [...this.tiles.values()].map(({ mesh }) => mesh);
+    const intersection = raycaster.intersectObjects(meshes, false)[0];
     return (intersection?.object.userData.tile as Tile | undefined)?.hex;
   }
 
-  applyTiles(tiles: TileState[]): void {
-    for (const tile of tiles) this.tiles.get(hexKey(tile.hex))?.setState(tile);
+  applyTiles(tiles: TileState[], liveTiles?: TileState[], previewTeam?: 0 | 1): void {
+    const liveByHex = new Map(liveTiles?.map((tile) => [hexKey(tile.hex), tile]));
+    for (const state of tiles) {
+      const tile = this.tiles.get(hexKey(state.hex));
+      tile?.setState(state);
+      const live = liveByHex.get(hexKey(state.hex));
+      const changed =
+        live &&
+        (live.influence[0] !== state.influence[0] || live.influence[1] !== state.influence[1]);
+      let label: string | null = null;
+      if (changed && previewTeam !== undefined) {
+        const projectedShare = influenceShare(state, previewTeam);
+        const shareDelta = projectedShare - influenceShare(live, previewTeam);
+        const pointDelta = state.influence[previewTeam] - live.influence[previewTeam];
+        label =
+          shareDelta === 0
+            ? `${projectedShare}% ${pointDelta > 0 ? '+' : ''}${pointDelta}i`
+            : `${projectedShare}% ${shareDelta > 0 ? '+' : ''}${shareDelta}`;
+      }
+      tile?.setInfluenceDelta(label, previewTeam ?? 0);
+    }
   }
 
   setHighlights(available: Hex[], hovered?: Hex): void {
@@ -176,7 +260,7 @@ class TileManager {
 
   dispose(scene: THREE.Scene): void {
     const firstTile = this.tiles.values().next().value as Tile | undefined;
-    for (const tile of this.tiles.values()) tile.material.dispose();
+    for (const tile of this.tiles.values()) tile.dispose();
     firstTile?.mesh.geometry.dispose();
     scene.remove(this.group);
   }
@@ -273,6 +357,7 @@ export class GameEngine {
   private readonly timer = new THREE.Timer();
   private readonly scene = new THREE.Scene();
   private readonly camera = new THREE.PerspectiveCamera(48, 1, 1, 5000);
+  private readonly cameraTarget = BOARD_CENTER.clone();
   private readonly renderer: THREE.WebGLRenderer;
   private readonly tileManager: TileManager;
   private readonly pieces = new Map<string, PlayerPiece>();
@@ -290,6 +375,19 @@ export class GameEngine {
   private readonly handlePointerMove: (event: PointerEvent) => void;
   private readonly handlePointerLeave: () => void;
   private readonly handlePointerDown: (event: PointerEvent) => void;
+  private readonly handlePointerUp: (event: PointerEvent) => void;
+  private readonly handlePointerCancel: (event: PointerEvent) => void;
+  private readonly handleKeyDown: (event: KeyboardEvent) => void;
+  private drag:
+    | {
+        pointerId: number;
+        x: number;
+        y: number;
+        camera: THREE.Vector3;
+        target: THREE.Vector3;
+        moved: boolean;
+      }
+    | undefined;
 
   constructor(container: HTMLElement, onViewChange: (view: GameView) => void) {
     this.container = container;
@@ -313,14 +411,21 @@ export class GameEngine {
     this.handleResize = this.resize.bind(this);
     this.handlePointerMove = this.pointerMove.bind(this);
     this.handlePointerLeave = () => {
+      if (this.drag) return;
       this.pointer.set(2, 2);
-      this.hoveredHex = undefined;
+      this.setHoveredHex(undefined);
     };
     this.handlePointerDown = this.pointerDown.bind(this);
+    this.handlePointerUp = this.pointerUp.bind(this);
+    this.handlePointerCancel = this.pointerCancel.bind(this);
+    this.handleKeyDown = this.keyDown.bind(this);
     window.addEventListener('resize', this.handleResize);
+    window.addEventListener('keydown', this.handleKeyDown);
     this.renderer.domElement.addEventListener('pointermove', this.handlePointerMove);
     this.renderer.domElement.addEventListener('pointerleave', this.handlePointerLeave);
     this.renderer.domElement.addEventListener('pointerdown', this.handlePointerDown);
+    this.renderer.domElement.addEventListener('pointerup', this.handlePointerUp);
+    this.renderer.domElement.addEventListener('pointercancel', this.handlePointerCancel);
     this.resize();
     this.renderer.setAnimationLoop(() => this.render());
     this.publish();
@@ -331,6 +436,8 @@ export class GameEngine {
     this.mode = mode;
     this.aiThinking = false;
     this.state = createInitialState();
+    this.cameraTarget.copy(BOARD_CENTER);
+    this.resize();
     this.clearPlanning();
     this.syncScene();
     this.publish();
@@ -340,6 +447,15 @@ export class GameEngine {
     if (!this.canHumanAct() || this.plannedAction || this.state.phase !== 'action') return;
     const piece = getPiece(this.state, pieceId);
     if (piece?.team !== this.state.activeTeam || piece.status !== 'reserve') return;
+    this.selectedPieceId = pieceId;
+    this.syncScene();
+    this.publish();
+  }
+
+  selectPiece(pieceId: string): void {
+    if (!this.canHumanAct() || this.plannedAction || this.state.phase !== 'action') return;
+    const piece = getPiece(this.state, pieceId);
+    if (piece?.team !== this.state.activeTeam || piece.status !== 'deployed') return;
     this.selectedPieceId = pieceId;
     this.syncScene();
     this.publish();
@@ -389,9 +505,12 @@ export class GameEngine {
     this.renderer.setAnimationLoop(null);
     this.timer.dispose();
     window.removeEventListener('resize', this.handleResize);
+    window.removeEventListener('keydown', this.handleKeyDown);
     this.renderer.domElement.removeEventListener('pointermove', this.handlePointerMove);
     this.renderer.domElement.removeEventListener('pointerleave', this.handlePointerLeave);
     this.renderer.domElement.removeEventListener('pointerdown', this.handlePointerDown);
+    this.renderer.domElement.removeEventListener('pointerup', this.handlePointerUp);
+    this.renderer.domElement.removeEventListener('pointercancel', this.handlePointerCancel);
     for (const piece of this.pieces.values()) piece.dispose(this.scene);
     this.pieces.clear();
     this.tileManager.dispose(this.scene);
@@ -405,15 +524,17 @@ export class GameEngine {
     this.renderer.setSize(width, height, false);
     this.camera.aspect = width / height;
     this.camera.updateProjectionMatrix();
-    const center = new THREE.Vector3(768, 450, 0);
-    const horizontalDistance = 1020 / Math.max(this.camera.aspect, 0.55);
+    const horizontalDistance =
+      window.innerWidth > 900
+        ? 2200 / Math.max(this.camera.aspect, 0.55)
+        : 1020 / Math.max(this.camera.aspect, 0.55);
     const distanceFromBoard = Math.max(1250, horizontalDistance);
     this.camera.position.set(
-      center.x,
-      center.y - distanceFromBoard * 0.82,
+      this.cameraTarget.x,
+      this.cameraTarget.y - distanceFromBoard * 0.82,
       distanceFromBoard * 0.78,
     );
-    this.camera.lookAt(center);
+    this.camera.lookAt(this.cameraTarget);
   }
 
   private updatePointer(event: PointerEvent): void {
@@ -424,10 +545,49 @@ export class GameEngine {
 
   private pointerMove(event: PointerEvent): void {
     this.updatePointer(event);
-    this.hoveredHex = this.intersectedHex();
+    if (this.drag?.pointerId === event.pointerId) {
+      const deltaX = event.clientX - this.drag.x;
+      const deltaY = event.clientY - this.drag.y;
+      if (Math.hypot(deltaX, deltaY) > 5) this.drag.moved = true;
+      if (this.drag.moved) {
+        this.pan(deltaX, deltaY);
+        this.setHoveredHex(undefined);
+        this.renderer.domElement.classList.add('is-panning');
+        return;
+      }
+    }
+    this.setHoveredHex(this.intersectedHex());
   }
 
   private pointerDown(event: PointerEvent): void {
+    if (event.button !== 0) return;
+    this.renderer.domElement.setPointerCapture(event.pointerId);
+    this.drag = {
+      pointerId: event.pointerId,
+      x: event.clientX,
+      y: event.clientY,
+      camera: this.camera.position.clone(),
+      target: this.cameraTarget.clone(),
+      moved: false,
+    };
+  }
+
+  private pointerUp(event: PointerEvent): void {
+    if (this.drag?.pointerId !== event.pointerId) return;
+    const wasMoved = this.drag.moved;
+    this.drag = undefined;
+    this.renderer.domElement.classList.remove('is-panning');
+    this.renderer.domElement.releasePointerCapture(event.pointerId);
+    if (!wasMoved) this.activatePointer(event);
+  }
+
+  private pointerCancel(event: PointerEvent): void {
+    if (this.drag?.pointerId !== event.pointerId) return;
+    this.drag = undefined;
+    this.renderer.domElement.classList.remove('is-panning');
+  }
+
+  private activatePointer(event: PointerEvent): void {
     if (
       !this.canHumanAct() ||
       this.anyPieceMoving() ||
@@ -466,6 +626,48 @@ export class GameEngine {
     );
     this.selectedPieceId = piece?.id ?? null;
     this.syncScene();
+    this.publish();
+  }
+
+  private pan(deltaX: number, deltaY: number): void {
+    if (!this.drag) return;
+    const distance = this.drag.camera.distanceTo(this.drag.target);
+    const worldPerPixel =
+      (2 * distance * Math.tan(THREE.MathUtils.degToRad(this.camera.fov / 2))) /
+      Math.max(this.renderer.domElement.clientHeight, 1);
+    const right = new THREE.Vector3()
+      .setFromMatrixColumn(this.camera.matrix, 0)
+      .setZ(0)
+      .normalize();
+    const up = new THREE.Vector3().setFromMatrixColumn(this.camera.matrix, 1).setZ(0).normalize();
+    const offset = right
+      .multiplyScalar(-deltaX * worldPerPixel)
+      .add(up.multiplyScalar(deltaY * worldPerPixel));
+    const target = this.drag.target.clone().add(offset);
+    target.x = THREE.MathUtils.clamp(target.x, 180, 1350);
+    target.y = THREE.MathUtils.clamp(target.y, 80, 820);
+    const clampedOffset = target.clone().sub(this.drag.target);
+    this.cameraTarget.copy(target);
+    this.camera.position.copy(this.drag.camera).add(clampedOffset);
+    this.camera.lookAt(this.cameraTarget);
+  }
+
+  private keyDown(event: KeyboardEvent): void {
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('input, select, textarea, a')) return;
+    if (event.key === 'Enter' && target?.closest('.confirmation button')) return;
+    if (event.key === 'Enter' && this.plannedAction && this.canHumanAct()) {
+      event.preventDefault();
+      this.confirm();
+    } else if (event.key === 'Escape' && this.plannedAction && this.canHumanAct()) {
+      event.preventDefault();
+      this.cancel();
+    }
+  }
+
+  private setHoveredHex(hex: Hex | undefined): void {
+    if (sameHex(this.hoveredHex ?? null, hex ?? null)) return;
+    this.hoveredHex = hex;
     this.publish();
   }
 
@@ -560,7 +762,11 @@ export class GameEngine {
       }
       rendered.sync(piece, piece.id === this.selectedPieceId, previewIds.has(piece.id));
     }
-    this.tileManager.applyTiles(display.tiles);
+    this.tileManager.applyTiles(
+      display.tiles,
+      this.previewState ? this.state.tiles : undefined,
+      this.previewState ? this.state.activeTeam : undefined,
+    );
   }
 
   private animateAction(previous: GameState, action: GameAction): void {
@@ -598,6 +804,7 @@ export class GameEngine {
       retreatingPieceId: this.state.phase === 'retreat' ? this.selectedPieceId : null,
       mode: this.mode,
       aiThinking: this.aiThinking,
+      hoveredHex: this.hoveredHex ? cloneHex(this.hoveredHex) : null,
     });
   }
 
@@ -650,6 +857,9 @@ export class GameEngine {
     this.renderer.domElement.dataset.rendered = 'true';
     this.renderer.domElement.dataset.turn = String(this.state.turn);
     this.renderer.domElement.dataset.phase = this.state.phase;
+    this.renderer.domElement.dataset.cameraTarget = `${Math.round(this.cameraTarget.x)},${Math.round(
+      this.cameraTarget.y,
+    )}`;
     if (this.plannedAction)
       this.renderer.domElement.dataset.plannedAction = actionKey(this.plannedAction);
     else delete this.renderer.domElement.dataset.plannedAction;

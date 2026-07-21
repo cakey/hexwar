@@ -28,6 +28,26 @@ test('renders a playable WebGL battlefield without browser errors', async ({ pag
   const scores = await page.locator('.score > span').allTextContents();
   expect(scores.map(Number).reduce((total, score) => total + score, 0)).toBe(85);
 
+  await page.getByRole('button', { name: /Scout Rapid probe/ }).click();
+  await expect(
+    page.locator('.selected-unit').getByRole('heading', { name: 'Scout' }),
+  ).toBeVisible();
+  await page.mouse.click(531, 478);
+  await expect(canvas).toHaveAttribute('data-planned-action', /move:violet-scout-1/);
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'New match' }).click();
+
+  await page.mouse.move(640, 360);
+  await expect(page.locator('.tile-intel')).toBeVisible();
+
+  const cameraBefore = await canvas.getAttribute('data-camera-target');
+  await page.mouse.move(700, 300);
+  await page.mouse.down();
+  await page.mouse.move(780, 350, { steps: 4 });
+  await page.mouse.up();
+  await expect.poll(() => canvas.getAttribute('data-camera-target')).not.toBe(cameraBefore);
+  expect(await page.evaluate(() => window.getSelection()?.toString())).toBe('');
+
   await page.screenshot({ path: 'test-results/hexwar.png' });
 
   await page.getByRole('button', { name: 'How to play' }).click();
@@ -46,7 +66,10 @@ test('renders a playable WebGL battlefield without browser errors', async ({ pag
   await page.getByRole('button', { name: 'Pass' }).click();
   await expect(page.getByText('Pass this turn')).toBeVisible();
   await expect(canvas).toHaveAttribute('data-planned-action', 'pass');
-  await page.getByRole('button', { name: 'Confirm' }).click();
+  await page.keyboard.press('Escape');
+  await expect(canvas).not.toHaveAttribute('data-planned-action', 'pass');
+  await page.getByRole('button', { name: 'Pass' }).click();
+  await page.keyboard.press('Enter');
   await expect(page.getByRole('heading', { name: 'Crimson moves' })).toBeVisible();
 
   await page.getByRole('button', { name: 'New match' }).click();

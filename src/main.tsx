@@ -4,10 +4,11 @@ import {
   cloneGameState,
   createInitialState,
   DOMINANCE_PERCENTAGE,
+  getTile,
   roundNumber,
   TEAM_NAMES,
 } from './model/game.js';
-import type { GameAction, GameState, PieceState } from './model/game.js';
+import type { GameAction, GameState, PieceState, TileState } from './model/game.js';
 import { GameEngine } from './rendering/game-engine.js';
 import type { GameView } from './rendering/game-engine.js';
 import './styles.css';
@@ -22,12 +23,74 @@ const INITIAL_VIEW: GameView = {
   retreatingPieceId: null,
   mode: 'ai',
   aiThinking: false,
+  hoveredHex: null,
 };
+
+function tileShare(tile: TileState | undefined, team: 0 | 1): number {
+  if (!tile) return 0;
+  const total = tile.influence[0] + tile.influence[1];
+  return total === 0 ? 0 : Math.round((tile.influence[team] / total) * 100);
+}
+
+function TileIntel({ view }: { view: GameView }) {
+  if (!view.hoveredHex) return null;
+  const live = getTile(view.state, view.hoveredHex);
+  const projected = getTile(view.displayState, view.hoveredHex);
+  if (!live || !projected) return null;
+  const violet = tileShare(projected, 0);
+  const crimson = tileShare(projected, 1);
+  const violetDelta = violet - tileShare(live, 0);
+  const crimsonDelta = crimson - tileShare(live, 1);
+  const owner =
+    projected.influence[0] + projected.influence[1] === 0 && projected.controller !== null
+      ? `${TEAM_NAMES[projected.controller]} held · no active pressure`
+      : projected.controller === null
+        ? 'Contested'
+        : `${TEAM_NAMES[projected.controller]} controlled`;
+
+  return (
+    <aside className="tile-intel" aria-live="polite">
+      <div>
+        <strong>Hex {view.hoveredHex.join(', ')}</strong>
+        <small>{owner}</small>
+      </div>
+      <span className="tile-intel__violet">
+        V {violet}% <small>({projected.influence[0]})</small>
+        {violetDelta !== 0 && <b>{violetDelta > 0 ? `+${violetDelta}` : violetDelta}</b>}
+      </span>
+      <span className="tile-intel__crimson">
+        C {crimson}% <small>({projected.influence[1]})</small>
+        {crimsonDelta !== 0 && <b>{crimsonDelta > 0 ? `+${crimsonDelta}` : crimsonDelta}</b>}
+      </span>
+    </aside>
+  );
+}
 
 const pieceName = (piece: PieceState): string => {
   const number = piece.id.endsWith('-2') ? ' II' : '';
   return `${piece.type[0].toUpperCase()}${piece.type.slice(1)}${number}`;
 };
+
+const PIECE_DETAILS = {
+  scout: {
+    role: 'Rapid probe',
+    movement: 'Move 2',
+    influence: 'Influence 3 · 2 · 1',
+    description: 'Reaches gaps quickly, but exerts only local pressure.',
+  },
+  standard: {
+    role: 'Field standard',
+    movement: 'Move 1',
+    influence: 'Influence 4 · 3 · 2 · 1',
+    description: 'Your broad, flexible source of territorial influence.',
+  },
+  anchor: {
+    role: 'Mobile bulwark',
+    movement: 'Move 1 packed · fixed deployed',
+    influence: '3 · 2 · 1 packed / 5 · 4 · 3 · 2 · 1 deployed',
+    description: 'Deploy it to dominate a region; pack it before moving again.',
+  },
+} as const;
 
 function Score({ state, displayState }: { state: GameState; displayState: GameState }) {
   const projected = displayState.territoryCounts;
@@ -77,6 +140,7 @@ function ControlPanel({ view, engine }: ControlPanelProps) {
   const { state, displayState, selectedPieceId, plannedAction } = view;
   const activePieces = state.pieces.filter(({ team }) => team === state.activeTeam);
   const selected = activePieces.find(({ id }) => id === selectedPieceId);
+  const fieldPieces = activePieces.filter(({ status }) => status === 'deployed');
   const reserves = activePieces.filter(({ status }) => status !== 'deployed');
   const pressured = activePieces.filter(({ pressured }) => pressured).length;
   const territory = Math.round(
@@ -108,22 +172,60 @@ function ControlPanel({ view, engine }: ControlPanelProps) {
 
       <p className="turn-panel__hint">{hint}</p>
 
-      {humanTurn && reserves.length > 0 && state.phase === 'action' && !plannedAction && (
-        <div className="reserve-tray" aria-label="Reserve pieces">
-          {reserves.map((piece) => (
-            <button
-              className={piece.id === selectedPieceId ? 'reserve reserve--selected' : 'reserve'}
-              disabled={piece.status === 'cooling'}
-              key={piece.id}
-              onClick={() => engine?.selectReserve(piece.id)}
-              type="button"
-            >
+      <div className="influence-legend" aria-label="Influence strength">
+        <span>Influence</span>
+        <i data-strength="1" title="Reach" />
+        <i data-strength="2" title="Weak" />
+        <i data-strength="3" title="Firm" />
+        <i data-strength="4" title="Strong" />
+      </div>
+
+      {selected && !plannedAction && (
+        <article className={`selected-unit selected-unit--${selected.type}`}>
+          <span className="selected-unit__glyph" aria-hidden="true" />
+          <div>
+            <small>{PIECE_DETAILS[selected.type].role}</small>
+            <h3>{pieceName(selected)}</h3>
+            <p>
+              {PIECE_DETAILS[selected.type].movement} · {PIECE_DETAILS[selected.type].influence}
+            </p>
+            <p>{PIECE_DETAILS[selected.type].description}</p>
+          </div>
+        </article>
+      )}
+
+      {humanTurn && !selected && !plannedAction && state.phase === 'action' && (
+        <div className="field-roster" aria-label="Pieces on the field">
+          {fieldPieces.map((piece) => (
+            <button key={piece.id} onClick={() => engine?.selectPiece(piece.id)} type="button">
+              <i className={`unit-icon unit-icon--${piece.type}`} aria-hidden="true" />
               <span>{pieceName(piece)}</span>
-              <small>{piece.status === 'cooling' ? 'Cooling' : 'Ready'}</small>
+              <small>{PIECE_DETAILS[piece.type].role}</small>
             </button>
           ))}
         </div>
       )}
+
+      {humanTurn &&
+        !selected &&
+        reserves.length > 0 &&
+        state.phase === 'action' &&
+        !plannedAction && (
+          <div className="reserve-tray" aria-label="Reserve pieces">
+            {reserves.map((piece) => (
+              <button
+                className={piece.id === selectedPieceId ? 'reserve reserve--selected' : 'reserve'}
+                disabled={piece.status === 'cooling'}
+                key={piece.id}
+                onClick={() => engine?.selectReserve(piece.id)}
+                type="button"
+              >
+                <span>{pieceName(piece)}</span>
+                <small>{piece.status === 'cooling' ? 'Cooling' : 'Ready'}</small>
+              </button>
+            ))}
+          </div>
+        )}
 
       {humanTurn &&
         selected?.type === 'anchor' &&
@@ -146,10 +248,10 @@ function ControlPanel({ view, engine }: ControlPanelProps) {
           {humanTurn ? (
             <div className="confirmation__buttons">
               <button className="confirm" onClick={() => engine?.confirm()} type="button">
-                Confirm
+                Confirm <kbd>Enter</kbd>
               </button>
               <button onClick={() => engine?.cancel()} type="button">
-                Cancel
+                Cancel <kbd>Esc</kbd>
               </button>
             </div>
           ) : (
@@ -215,6 +317,7 @@ function App() {
         </div>
       </header>
       <Score state={view.state} displayState={view.displayState} />
+      <TileIntel view={view} />
       {dominance && !winner && (
         <div className={`dominance dominance--team-${dominance.team}`}>
           {TEAM_NAMES[dominance.team]} holds {Math.round(DOMINANCE_PERCENTAGE * 100)}% · respond now
@@ -239,7 +342,7 @@ function App() {
           How to play
         </button>
       </div>
-      <p className="instructions">Select · preview influence · confirm one action</p>
+      <p className="instructions">Drag to pan · Enter confirms · Esc cancels</p>
 
       {winner !== null && (
         <div className="match-result" role="dialog" aria-modal="true" aria-label="Match complete">

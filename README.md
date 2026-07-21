@@ -52,6 +52,9 @@ and a deployed Anchor is immobile but exceptionally strong.
 Tiles belong to the team with the greater nearby influence. A piece standing in
 enemy-controlled territory is pressured; if its owner cannot relieve that
 pressure on their next action, it retreats for free or is routed into cooldown.
-Control 60% of the board through the opponent's response to win. The default
-mode is Violet versus the Crimson AI; hotseat play is available from the top
-right controls.
+Claimed territory remains yours when a piece moves away, until opposing
+influence challenges it. Hover a tile for exact influence percentages; planned
+moves display their local percentage and influence deltas. Drag the battlefield
+to pan, press Enter to confirm, and press Escape to cancel. Control 60% of the
+board through the opponent's response to win. The default mode is Violet versus
+the Crimson AI; hotseat play is available from the top-right controls.
