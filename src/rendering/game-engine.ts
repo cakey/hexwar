@@ -482,7 +482,10 @@ class PlayerPiece {
 
   sync(piece: PieceState, selected: boolean, previewed: boolean): void {
     this.root.visible = piece.status === 'deployed' && piece.hex !== null;
-    if (!this.root.visible || !piece.hex) return;
+    if (!this.root.visible || !piece.hex) {
+      this.stopAnimation();
+      return;
+    }
     if (!this.isMoving) this.setWorldPosition(piece.hex);
     this.baseHeight = TILE_HEIGHT + 2;
     this.root.position.z = this.baseHeight;
@@ -525,6 +528,11 @@ class PlayerPiece {
 
   get isMoving(): boolean {
     return this.segments.length > 0;
+  }
+
+  stopAnimation(): void {
+    this.segments = [];
+    this.segmentProgress = 0;
   }
 
   update(deltaSeconds: number): void {
@@ -684,6 +692,7 @@ export class GameEngine {
 
   reset(mode: MatchMode = this.mode): void {
     this.clearAiTimers();
+    for (const piece of this.pieces.values()) piece.stopAnimation();
     this.mode = mode;
     this.aiThinking = false;
     this.state = createInitialState();
